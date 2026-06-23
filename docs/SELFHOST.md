@@ -16,20 +16,17 @@ This document explains how to run Burnwise on your own infrastructure.
 ```bash
 # Copy and edit environment variables
 cp .env.example .env
+# At minimum, change JWT_SECRET to a long random string:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 # Start everything
 docker compose up -d
 
-# Run migrations and seed demo data
-npm run db:migrate --workspace=apps/server
-npm run db:seed --workspace=apps/server
-
-# The seed creates demo tickets, LLM events, session activity, and CI runs
-# so the dashboard shows meaningful data immediately.
-
 # Open the dashboard
 open http://localhost:8080
 ```
+
+On first visit, the **setup wizard** will appear. Enter your workspace name, email, and password to create the admin account. The database starts empty — use the **"Explore with demo data"** button after login to load sample sprints, tickets, and LLM events.
 
 ## Option 2: External PostgreSQL
 
@@ -37,7 +34,8 @@ Set `DATABASE_URL` to your PostgreSQL instance:
 
 ```bash
 export DATABASE_URL=postgresql://user:pass@your-db-host:5432/ats
-npm run db:migrate --workspace=apps/server
+export JWT_SECRET=your-random-secret
+npm run db:push --workspace=apps/server
 npm run start --workspace=apps/server
 ```
 
@@ -51,11 +49,13 @@ Put the web dashboard and server behind Nginx, Caddy, or Traefik. Set the follow
 
 ## Security checklist
 
+- **Set `JWT_SECRET`** to a cryptographically random string (at least 32 bytes). Tokens are invalid if this changes.
 - Change `INGEST_API_KEY` from the default `dev-key`
 - Use a strong PostgreSQL password
 - Run the server behind HTTPS in production
 - Restrict network access to the proxy (it forwards to your LLM provider)
 - Store issue tracker tokens securely (they are saved in the database)
+- The first user to complete the setup wizard becomes the workspace admin
 
 ## Backups
 
@@ -79,6 +79,12 @@ npm run db:migrate --workspace=apps/server
 **Proxy returns 401**
 - Verify `INGEST_API_KEY` matches the server's `INGEST_API_KEY`
 
+**Setup wizard does not appear**
+- The workspace already has a user. Go to `/login` to sign in, or clear the database and restart.
+
 **No tickets appear in the dashboard**
-- Sync from GitHub, Jira, or GitLab using the API or the dashboard
-- Ensure the project ID in the dashboard matches the project used during sync
+- Sync from GitHub, Jira, or GitLab using the Integrations page in the dashboard
+- Or use the "Explore with demo data" button on the empty project screen
+
+**Proxy returns 401 on ingest**
+- Verify `INGEST_API_KEY` on the proxy matches `INGEST_API_KEY` on the server

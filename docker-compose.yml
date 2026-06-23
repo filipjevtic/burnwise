@@ -25,6 +25,9 @@ services:
       DATABASE_URL: postgresql://ats:ats@postgres:5432/ats
       PORT: 3000
       NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRY: ${JWT_EXPIRY:-7d}
+      INGEST_API_KEY: ${INGEST_API_KEY:-dev-key}
     ports:
       - "3000:3000"
     depends_on:
