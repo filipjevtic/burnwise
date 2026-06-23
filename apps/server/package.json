@@ -11,7 +11,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:generate": "prisma generate",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"dist/**/*.test.js\""
+    "test": "node --test dist/*.test.js"
   },
   "prisma": {
     "seed": "npm run db:seed"
