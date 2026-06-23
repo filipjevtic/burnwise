@@ -39,6 +39,34 @@ npm run db:push --workspace=apps/server
 npm run start --workspace=apps/server
 ```
 
+## SSO / OAuth
+
+Burnwise supports GitHub and Google OAuth out of the box. Both are optional — email/password always works.
+
+### GitHub OAuth
+
+1. Go to **GitHub → Settings → Developer settings → OAuth Apps → New OAuth App**.
+2. Set **Authorization callback URL** to `https://your-domain/api/v1/auth/oauth/github/callback`.
+3. Copy the **Client ID** and **Client Secret** into your `.env`:
+   ```
+   GITHUB_CLIENT_ID=...
+   GITHUB_CLIENT_SECRET=...
+   APP_URL=https://your-domain
+   ```
+
+### Google OAuth
+
+1. Go to **Google Cloud Console → APIs & Services → Credentials → Create OAuth 2.0 Client ID**.
+2. Set **Authorised redirect URI** to `https://your-domain/api/v1/auth/oauth/google/callback`.
+3. Copy the **Client ID** and **Client Secret** into your `.env`:
+   ```
+   GOOGLE_CLIENT_ID=...
+   GOOGLE_CLIENT_SECRET=...
+   APP_URL=https://your-domain
+   ```
+
+SSO users are automatically created on first sign-in with the `member` role. Promote them to admin via **Settings → Team** after they sign in.
+
 ## Reverse proxy / HTTPS
 
 Put the web dashboard and server behind Nginx, Caddy, or Traefik. Set the following:

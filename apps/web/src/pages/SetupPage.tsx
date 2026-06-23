@@ -6,6 +6,7 @@ import { Label } from "../components/ui/label.js";
 import { Button } from "../components/ui/button.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
 import { AlertCircle } from "lucide-react";
+import { SSOButtons } from "../components/auth/SSOButtons.js";
 
 export function SetupPage() {
   const { setup } = useAuth();
@@ -117,6 +118,9 @@ export function SetupPage() {
                 {loading ? "Setting up..." : "Create workspace"}
               </Button>
             </form>
+            <div className="mt-4">
+              <SSOButtons label="Or sign in with an existing account" />
+            </div>
           </CardContent>
         </Card>
       </div>

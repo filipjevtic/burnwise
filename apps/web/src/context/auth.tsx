@@ -17,6 +17,7 @@ interface AuthContextValue {
   setupRequired: boolean | null;
   login: (email: string, password: string) => Promise<void>;
   setup: (data: { email: string; password: string; displayName?: string; workspaceName?: string }) => Promise<void>;
+  loginWithToken: (token: string) => void;
   logout: () => void;
 }
 
@@ -92,6 +93,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSetupRequired(false);
   }, []);
 
+  const loginWithToken = useCallback((t: string) => {
+    localStorage.setItem(TOKEN_KEY, t);
+    setToken(t);
+    setSetupRequired(false);
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
@@ -99,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, setupRequired, login, setup, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, setupRequired, login, setup, loginWithToken, logout }}>
       {children}
     </AuthContext.Provider>
   );

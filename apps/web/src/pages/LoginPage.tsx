@@ -6,6 +6,7 @@ import { Label } from "../components/ui/label.js";
 import { Button } from "../components/ui/button.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
 import { AlertCircle } from "lucide-react";
+import { SSOButtons } from "../components/auth/SSOButtons.js";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -75,6 +76,9 @@ export function LoginPage() {
                 {loading ? "Signing in..." : "Sign in"}
               </Button>
             </form>
+            <div className="mt-4">
+              <SSOButtons />
+            </div>
           </CardContent>
         </Card>
       </div>

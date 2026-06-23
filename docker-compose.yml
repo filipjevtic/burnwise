@@ -28,6 +28,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       JWT_EXPIRY: ${JWT_EXPIRY:-7d}
       INGEST_API_KEY: ${INGEST_API_KEY:-dev-key}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     ports:
       - "3000:3000"
     depends_on:
