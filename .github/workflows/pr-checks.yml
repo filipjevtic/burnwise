@@ -1,0 +1,73 @@
+﻿name: PR Checks
+
+on:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches: [master, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --workspaces --include-workspace-root
+
+      - name: Typecheck
+        run: npm run typecheck --workspaces
+
+      - name: Build
+        run: npm run build --workspaces
+
+      - name: Unit tests
+        run: npm run test --workspace=packages/schema --if-present
+
+      - name: Start PostgreSQL
+        run: docker compose up -d postgres
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            docker compose exec -T postgres pg_isready -U ats && break
+            sleep 1
+          done
+
+      - name: Run migrations
+        run: npm run db:migrate --workspace=apps/server
+
+      - name: Seed demo data
+        run: npm run db:seed --workspace=apps/server
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+
+      - name: Run E2E tests
+        run: npm run e2e --workspace=apps/web
+        env:
+          CI: true
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+      - name: Stop Docker
+        if: always()
+        run: docker compose down

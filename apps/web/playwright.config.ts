@@ -19,18 +19,18 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "cd ../server && npm run start",
+      command: "npm run start --workspace=apps/server",
       url: "http://localhost:3000/health",
       timeout: 120 * 1000,
       reuseExistingServer: !process.env.CI,
       env: {
-        DATABASE_URL: "postgresql://postgres:password@localhost:5432/ats",
+        DATABASE_URL: "postgresql://ats:ats@localhost:5432/ats",
         INGEST_API_KEY: "dev-key",
         PORT: "3000",
       },
     },
     {
-      command: "npm run dev",
+      command: "npm run dev --workspace=apps/web",
       url: "http://localhost:5173",
       timeout: 120 * 1000,
       reuseExistingServer: !process.env.CI,
