@@ -6,4 +6,5 @@ node_modules
 apps/*/dist
 apps/*/out
 packages/*/dist
+*.tsbuildinfo
 .DS_Store

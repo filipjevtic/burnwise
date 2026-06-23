@@ -13,7 +13,7 @@ RUN npm install --workspace=apps/proxy --include-workspace-root
 COPY packages/schema ./packages/schema
 COPY apps/proxy ./apps/proxy
 
-RUN npm run build --workspace=packages/schema
+RUN find /app/packages -name "*.tsbuildinfo" -delete && npm run build --workspace=packages/schema
 RUN npm run build --workspace=apps/proxy
 
 FROM node:20-alpine AS runner

@@ -15,7 +15,7 @@ RUN npm install --workspace=apps/server --include-workspace-root
 COPY packages/schema ./packages/schema
 COPY apps/server ./apps/server
 
-RUN npm run build --workspace=packages/schema
+RUN find /app/packages -name "*.tsbuildinfo" -delete && npm run build --workspace=packages/schema
 RUN npm run db:generate --workspace=apps/server
 RUN npm run build --workspace=apps/server
 
@@ -23,7 +23,10 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
+RUN apk add --no-cache openssl
+
 ENV NODE_ENV=production
+ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/schema/dist ./packages/schema/dist
