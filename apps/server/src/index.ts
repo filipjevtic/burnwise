@@ -11,6 +11,7 @@ import { registerProjectRoutes } from "./routes/projects.js";
 import { registerAlertRoutes } from "./routes/alerts.js";
 import { registerTeamRoutes } from "./routes/team.js";
 import { registerCIRoutes } from "./routes/ci.js";
+import { registerAuthRoutes } from "./routes/auth.js";
 
 const app = Fastify({
   logger: true,
@@ -28,6 +29,7 @@ await app.register(registerProjectRoutes, { prefix: "/api/v1/projects" });
 await app.register(registerAlertRoutes, { prefix: "/api/v1/alerts" });
 await app.register(registerTeamRoutes, { prefix: "/api/v1/team" });
 await app.register(registerCIRoutes, { prefix: "/api/v1/ci" });
+await app.register(registerAuthRoutes, { prefix: "/api/v1/auth" });
 
 try {
   await app.listen({ port: config.port, host: "0.0.0.0" });

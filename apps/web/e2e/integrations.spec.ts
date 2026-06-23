@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { loginAs } from "./helpers/auth.js";
 
 test("integration logos and sync forms are visible", async ({ page }) => {
+  await loginAs(page);
   await page.goto("/integrations");
   await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible();
 
