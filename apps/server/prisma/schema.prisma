@@ -8,13 +8,14 @@ datasource db {
 }
 
 model Workspace {
-  id        String   @id @default(uuid())
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  projects  Project[]
-  users     User[]
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  setupComplete Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  projects      Project[]
+  users         User[]
 }
 
 model Project {
@@ -39,15 +40,19 @@ model Project {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  workspaceId String
-  email       String
-  displayName String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  events      Event[]
-  memberships TeamMember[]
+  id           String   @id @default(uuid())
+  workspaceId  String
+  email        String
+  displayName  String?
+  passwordHash String?  // null for SSO-only users
+  role         String   @default("member") // admin, member
+  ssoProvider  String?  // github, google, etc.
+  ssoId        String?  // provider's user ID
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  events       Event[]
+  memberships  TeamMember[]
 
   @@unique([workspaceId, email])
 }

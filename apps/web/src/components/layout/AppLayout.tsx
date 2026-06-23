@@ -1,8 +1,9 @@
 import * as React from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Gauge, Plug, Settings, Sun, Moon, Monitor, Check, Menu, X } from "lucide-react";
+import { LayoutDashboard, Gauge, Plug, Settings, Sun, Moon, Monitor, Check, Menu, X, LogOut } from "lucide-react";
 import { Button } from "../ui/button.js";
 import { useTheme } from "../../hooks/use-theme.js";
+import { useAuth } from "../../context/auth.js";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -54,6 +55,7 @@ export function AppLayout({
   onProjectChange: (value: string) => void;
 }) {
   const { theme, setTheme } = useTheme();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const [draftProjectId, setDraftProjectId] = React.useState(projectId);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -100,7 +102,12 @@ export function AppLayout({
             <NavLinks location={location} />
           </nav>
 
-          <div className="border-t p-3">
+          <div className="border-t p-3 space-y-1">
+            {user && (
+              <div className="px-3 py-2 text-xs text-muted-foreground truncate">
+                {user.displayName || user.email}
+              </div>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -110,6 +117,15 @@ export function AppLayout({
             >
               {theme === "dark" ? <Moon className="mr-2 h-4 w-4" /> : theme === "light" ? <Sun className="mr-2 h-4 w-4" /> : <Monitor className="mr-2 h-4 w-4" />}
               Theme
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-muted-foreground"
+              onClick={logout}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign out
             </Button>
           </div>
         </aside>
@@ -184,7 +200,12 @@ export function AppLayout({
                   <NavLinks location={location} onNavigate={() => setMobileOpen(false)} />
                 </nav>
 
-                <div className="border-t p-3">
+                <div className="border-t p-3 space-y-1">
+                  {user && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground truncate">
+                      {user.displayName || user.email}
+                    </div>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -194,6 +215,15 @@ export function AppLayout({
                   >
                     {theme === "dark" ? <Moon className="mr-2 h-4 w-4" /> : theme === "light" ? <Sun className="mr-2 h-4 w-4" /> : <Monitor className="mr-2 h-4 w-4" />}
                     Theme
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-muted-foreground"
+                    onClick={() => { logout(); setMobileOpen(false); }}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
                   </Button>
                 </div>
               </div>
