@@ -26,8 +26,10 @@ jobs:
       - name: Install dependencies
         run: npm install --workspaces --include-workspace-root
 
-      - name: Build shared schema
-        run: npm run build --workspace=packages/schema
+      - name: Build shared packages
+        run: |
+          npm run build --workspace=packages/schema
+          npm run build --workspace=packages/pricing
 
       - name: Generate Prisma client
         run: npm run db:generate --workspace=apps/server

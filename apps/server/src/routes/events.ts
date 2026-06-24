@@ -8,6 +8,7 @@ import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace, assertTicketInWorkspace } from "../middleware/scope.js";
 import { verifyApiKey } from "../services/apikey.js";
 import { parsePagination, buildPaginationMeta } from "../lib/pagination.js";
+import { resolveCostUsd } from "@burnwise/pricing";
 
 /** Max rows per createMany statement to keep parameter counts well-bounded. */
 const INSERT_CHUNK_SIZE = 500;
@@ -68,6 +69,12 @@ export async function registerEventRoutes(
 
         const association = await associateEvent({ ...event, ...resolved }, cache);
 
+        // Cost is authoritative server-side: for llm.response events that
+        // arrive without a cost (e.g. from the CLI or direct API callers), or
+        // with a zero cost, derive it from the central price table so all cost
+        // analytics use one consistent source of truth.
+        const payload = backfillEventCost(event.eventType, event.payload);
+
         rows.push({
           index,
           data: {
@@ -83,7 +90,7 @@ export async function registerEventRoutes(
             traceId: event.traceId,
             spanId: event.spanId,
             parentSpanId: event.parentSpanId,
-            payload: event.payload as Prisma.InputJsonValue,
+            payload: payload as Prisma.InputJsonValue,
             metadata: event.metadata as Prisma.InputJsonValue,
             associationMethod: association.method,
             associationConfidence: association.confidence,
@@ -170,4 +177,26 @@ export async function registerEventRoutes(
     ]);
     return { events, pagination: buildPaginationMeta(pagination, total) };
   });
+}
+
+/**
+ * For llm.response events, ensure `costUsd` is set on the payload using the
+ * central pricing table. Returns the payload unchanged for other event types
+ * or when there is nothing to price. Never mutates the input payload.
+ */
+function backfillEventCost(eventType: string, payload: unknown): unknown {
+  if (eventType !== "llm.response" || payload === null || typeof payload !== "object") {
+    return payload;
+  }
+  const p = payload as Record<string, unknown>;
+  const costUsd = resolveCostUsd({
+    provider: typeof p.provider === "string" ? p.provider : undefined,
+    model: typeof p.model === "string" ? p.model : undefined,
+    promptTokens: typeof p.promptTokens === "number" ? p.promptTokens : undefined,
+    completionTokens: typeof p.completionTokens === "number" ? p.completionTokens : undefined,
+    totalTokens: typeof p.totalTokens === "number" ? p.totalTokens : undefined,
+    costUsd: typeof p.costUsd === "number" ? p.costUsd : undefined,
+  });
+  if (costUsd === undefined || costUsd === p.costUsd) return payload;
+  return { ...p, costUsd };
 }

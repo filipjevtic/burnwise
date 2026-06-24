@@ -1,6 +1,10 @@
 import { config } from "./config.js";
 import type { Event } from "@burnwise/schema";
+import { estimateCost } from "@burnwise/pricing";
 import type { Attribution } from "./attribution.js";
+
+// Re-exported so existing importers (and tests) keep a stable path.
+export { estimateCost };
 
 interface EmitLlmEventsInput {
   requestId: string;
@@ -129,22 +133,3 @@ function extractResponseText(responseBody: Record<string, unknown> | null): stri
   return (message?.content as string) || (choices[0].text as string);
 }
 
-export function estimateCost(provider: string, model: string, promptTokens: number, completionTokens: number): number {
-  // Simple fallback price list per 1M tokens. Users should override this via server config.
-  const prices: Record<string, { prompt: number; completion: number }> = {
-    "gpt-4o": { prompt: 5.0, completion: 15.0 },
-    "gpt-4o-mini": { prompt: 0.15, completion: 0.6 },
-    "gpt-4-turbo": { prompt: 10.0, completion: 30.0 },
-    "claude-3-5-sonnet": { prompt: 3.0, completion: 15.0 },
-    "claude-3-haiku": { prompt: 0.25, completion: 1.25 },
-    default: { prompt: 1.0, completion: 3.0 },
-  };
-
-  const key =
-    Object.keys(prices)
-      .filter((k) => k !== "default")
-      .sort((a, b) => b.length - a.length)
-      .find((k) => model.includes(k)) || "default";
-  const price = prices[key];
-  return (promptTokens * price.prompt + completionTokens * price.completion) / 1_000_000;
-}
