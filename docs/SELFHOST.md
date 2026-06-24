@@ -96,6 +96,24 @@ The server applies an in-memory, per-IP rate limit to every route. Health checks
 
 The limiter is per-instance. For multi-instance deployments, front it with a shared store (e.g. Redis) or rely on your load balancer/gateway.
 
+## Tenancy & roles
+
+Burnwise is **single-workspace-per-install** by default. Every data query is
+scoped to the `workspaceId` carried in the caller's JWT, enforced by tenancy
+guards on all project/sprint/ticket/event/session routes, so cross-workspace
+access is not possible.
+
+- **Workspace roles** (`User.role`): a workspace `admin`/`owner` has implicit
+  full access to every project in the workspace.
+- **Project roles** (`TeamMember.role`): `viewer < member < admin < owner`.
+  Reads require `viewer+`, writing project data requires `member+`, and managing
+  a project (team, settings, integrations, invites) requires `admin+`. Workspace
+  admins bypass project membership; ordinary workspace members default to
+  `viewer` so existing dashboards keep working.
+- **`MULTI_WORKSPACE_ENABLED`** — leave `false` (default). It is a forward-looking
+  flag; the additional-workspace creation path is not yet implemented, and the
+  data model is already workspace-scoped so enabling it later is config-only.
+
 ## Reverse proxy / HTTPS
 
 Put the web dashboard and server behind Nginx, Caddy, or Traefik. Set the following:

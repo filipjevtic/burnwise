@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { getPrisma } from "../db.js";
 import { config } from "../config.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
+import { canOnboardWorkspace } from "../lib/tenancy.js";
 
 function signToken(payload: AuthPayload): string {
   return jwt.sign(payload, config.jwtSecret, { expiresIn: config.jwtExpiry } as jwt.SignOptions);
@@ -30,8 +31,8 @@ export async function registerAuthRoutes(
       request: FastifyRequest<{ Body: { email: string; password: string; displayName?: string; workspaceName?: string } }>,
       reply: FastifyReply
     ) => {
-      const existing = await prisma.workspace.findFirst({ where: { setupComplete: true } });
-      if (existing) {
+      const completedCount = await prisma.workspace.count({ where: { setupComplete: true } });
+      if (!canOnboardWorkspace(completedCount, config.features.multiWorkspace)) {
         return reply.status(400).send({ error: "Setup already complete" });
       }
 

@@ -26,6 +26,14 @@ export const config = {
     authMax: Number(process.env.RATE_LIMIT_AUTH_MAX || "10"),
     ingestMax: Number(process.env.RATE_LIMIT_INGEST_MAX || "600"),
   },
+  features: {
+    // Multi-workspace (multi-tenant) onboarding. OFF by default: Burnwise is
+    // single-workspace-per-install today and every query is workspace-scoped
+    // from the JWT, so flipping this on later is the only change needed to host
+    // multiple workspaces. The additional-workspace creation path is not yet
+    // implemented, so this should remain false until that lands.
+    multiWorkspace: process.env.MULTI_WORKSPACE_ENABLED === "true",
+  },
   oauth: {
     github: {
       clientId: process.env.GITHUB_CLIENT_ID || "",

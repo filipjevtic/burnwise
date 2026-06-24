@@ -10,7 +10,8 @@
     "dist/services/velocity.js",
     "dist/lib/crypto.js",
     "dist/lib/pagination.js",
-    "dist/lib/roles.js"
+    "dist/lib/roles.js",
+    "dist/lib/tenancy.js"
   ],
   "exclude": ["**/*.test.js"],
   "reporter": ["text", "text-summary", "lcov"],
