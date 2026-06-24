@@ -1,11 +1,15 @@
 import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from "fastify";
+import type { Prisma } from "@prisma/client";
 import { ingestBatchSchema, type IngestResponse } from "@burnwise/schema";
 import { config } from "../config.js";
 import { getPrisma } from "../db.js";
-import { associateEvent } from "../services/association.js";
+import { associateEvent, createAssociationCache } from "../services/association.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace, assertTicketInWorkspace } from "../middleware/scope.js";
 import { verifyApiKey } from "../services/apikey.js";
+
+/** Max rows per createMany statement to keep parameter counts well-bounded. */
+const INSERT_CHUNK_SIZE = 500;
 
 export async function registerEventRoutes(
   app: FastifyInstance,
@@ -39,6 +43,12 @@ export async function registerEventRoutes(
 
     const response: IngestResponse = { accepted: 0, rejected: 0, errors: [] };
 
+    // Phase 1: resolve ticket associations and build insert rows. A per-batch
+    // cache memoizes ticket/session lookups so a batch that targets one
+    // ticket/session costs a couple of queries instead of one per event.
+    const cache = createAssociationCache();
+    const rows: Array<{ index: number; data: Prisma.EventCreateManyInput }> = [];
+
     for (const [index, event] of parsed.data.events.entries()) {
       try {
         // When authenticated with a personal key, override the identity fields
@@ -55,9 +65,10 @@ export async function registerEventRoutes(
               projectId: event.projectId,
             };
 
-        const association = await associateEvent({ ...event, ...resolved });
+        const association = await associateEvent({ ...event, ...resolved }, cache);
 
-        await prisma.event.create({
+        rows.push({
+          index,
           data: {
             eventId: event.eventId,
             eventType: event.eventType,
@@ -71,20 +82,46 @@ export async function registerEventRoutes(
             traceId: event.traceId,
             spanId: event.spanId,
             parentSpanId: event.parentSpanId,
-            payload: event.payload as any,
-            metadata: event.metadata as any,
+            payload: event.payload as Prisma.InputJsonValue,
+            metadata: event.metadata as Prisma.InputJsonValue,
             associationMethod: association.method,
             associationConfidence: association.confidence,
           },
         });
-
-        response.accepted++;
       } catch (err) {
         response.rejected++;
         response.errors.push({
           index,
           message: err instanceof Error ? err.message : "Unknown error",
         });
+      }
+    }
+
+    // Phase 2: bulk-insert in chunks. createMany with skipDuplicates makes
+    // re-delivery idempotent (duplicate eventIds are silently ignored). If a
+    // chunk fails (e.g. an FK violation on one row), fall back to per-row
+    // inserts for that chunk so a single bad event doesn't reject the rest.
+    for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + INSERT_CHUNK_SIZE);
+      try {
+        const result = await prisma.event.createMany({
+          data: chunk.map((r) => r.data),
+          skipDuplicates: true,
+        });
+        response.accepted += result.count;
+      } catch {
+        for (const row of chunk) {
+          try {
+            await prisma.event.create({ data: row.data });
+            response.accepted++;
+          } catch (err) {
+            response.rejected++;
+            response.errors.push({
+              index: row.index,
+              message: err instanceof Error ? err.message : "Unknown error",
+            });
+          }
+        }
       }
     }
 

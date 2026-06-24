@@ -1,3 +1,4 @@
+import type { PrismaClient } from "@prisma/client";
 import type { Event } from "@burnwise/schema";
 import { getPrisma } from "../db.js";
 import { resolveSessionTicketId } from "./session.js";
@@ -9,25 +10,57 @@ export interface AssociationResult {
 }
 
 /**
+ * Per-batch memoization for ingest. A single batch usually targets one project
+ * and a handful of tickets/sessions, so caching these lookups turns thousands
+ * of duplicate DB round-trips into a few.
+ */
+export interface AssociationCache {
+  /** `${projectId}::${externalId}` -> internal ticket id (or null if absent). */
+  tickets: Map<string, string | null>;
+  /** sessionId -> resolved ticket id (or null). */
+  sessions: Map<string, string | null>;
+}
+
+export function createAssociationCache(): AssociationCache {
+  return { tickets: new Map(), sessions: new Map() };
+}
+
+/** Resolve an external ticket key to an internal id, memoized via the cache. */
+async function lookupTicketByExternalId(
+  prisma: PrismaClient,
+  projectId: string,
+  externalId: string,
+  cache?: AssociationCache
+): Promise<string | null> {
+  const key = `${projectId}::${externalId}`;
+  const cached = cache?.tickets.get(key);
+  if (cached !== undefined) return cached;
+  const ticket = await prisma.ticket.findUnique({
+    where: { projectId_externalId: { projectId, externalId } },
+    select: { id: true },
+  });
+  const id = ticket?.id ?? null;
+  cache?.tickets.set(key, id);
+  return id;
+}
+
+/**
  * Association rules, in order of confidence:
  * 1. Event already carries a ticketId.
  * 2. Ticket ID appears in the LLM prompt text.
  * 3. Ticket ID appears in the git branch or commit.
  * 4. Payload metadata includes a ticket reference.
  */
-export async function associateEvent(event: Event): Promise<AssociationResult> {
+export async function associateEvent(
+  event: Event,
+  cache?: AssociationCache
+): Promise<AssociationResult> {
   // Highest confidence: explicit ticketId on the event.
   if (event.ticketId) {
     const prisma = await getPrisma();
-    const ticket = await prisma.ticket.findUnique({
-      where: { projectId_externalId: { projectId: event.projectId, externalId: event.ticketId } },
-    });
-    if (ticket) {
-      return {
-        ticketId: ticket.id,
-        method: "explicit",
-        confidence: 1.0,
-      };
+    const ticketId = await lookupTicketByExternalId(prisma, event.projectId, event.ticketId, cache);
+    if (ticketId) {
+      return { ticketId, method: "explicit", confidence: 1.0 };
     }
     // If it looks like a UUID, trust it as an internal id.
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(event.ticketId)) {
@@ -44,13 +77,16 @@ export async function associateEvent(event: Event): Promise<AssociationResult> {
   // events in it inherit that association.
   if (event.sessionId) {
     const prisma = await getPrisma();
-    const ticketId = await resolveSessionTicketId(prisma, event.sessionId);
+    const cached = cache?.sessions.get(event.sessionId);
+    const ticketId =
+      cached !== undefined ? cached : await resolveSessionTicketId(prisma, event.sessionId);
+    cache?.sessions.set(event.sessionId, ticketId);
     if (ticketId) {
       return { ticketId, method: "session", confidence: 0.95 };
     }
   }
 
-  const candidates = await findTicketCandidates(event);
+  const candidates = await findTicketCandidates(event, cache);
   if (candidates.length > 0) {
     return {
       ticketId: candidates[0].ticketId,
@@ -74,7 +110,10 @@ interface Candidate {
   matchedValue: string;
 }
 
-async function findTicketCandidates(event: Event): Promise<Candidate[]> {
+async function findTicketCandidates(
+  event: Event,
+  cache?: AssociationCache
+): Promise<Candidate[]> {
   const prisma = await getPrisma();
   const candidates: Candidate[] = [];
 
@@ -83,16 +122,9 @@ async function findTicketCandidates(event: Event): Promise<Candidate[]> {
   if (promptText) {
     const keys = extractTicketKeys(promptText);
     for (const key of keys) {
-      const ticket = await prisma.ticket.findUnique({
-        where: { projectId_externalId: { projectId: event.projectId, externalId: key } },
-      });
-      if (ticket) {
-        candidates.push({
-          ticketId: ticket.id,
-          method: "prompt-text",
-          confidence: 0.85,
-          matchedValue: key,
-        });
+      const ticketId = await lookupTicketByExternalId(prisma, event.projectId, key, cache);
+      if (ticketId) {
+        candidates.push({ ticketId, method: "prompt-text", confidence: 0.85, matchedValue: key });
       }
     }
   }
@@ -104,16 +136,9 @@ async function findTicketCandidates(event: Event): Promise<Candidate[]> {
   if (gitContext) {
     const keys = extractTicketKeys(gitContext);
     for (const key of keys) {
-      const ticket = await prisma.ticket.findUnique({
-        where: { projectId_externalId: { projectId: event.projectId, externalId: key } },
-      });
-      if (ticket) {
-        candidates.push({
-          ticketId: ticket.id,
-          method: "git-context",
-          confidence: 0.75,
-          matchedValue: key,
-        });
+      const ticketId = await lookupTicketByExternalId(prisma, event.projectId, key, cache);
+      if (ticketId) {
+        candidates.push({ ticketId, method: "git-context", confidence: 0.75, matchedValue: key });
       }
     }
   }
@@ -122,16 +147,9 @@ async function findTicketCandidates(event: Event): Promise<Candidate[]> {
   const metaText = JSON.stringify(event.metadata);
   const metaKeys = extractTicketKeys(metaText);
   for (const key of metaKeys) {
-    const ticket = await prisma.ticket.findUnique({
-      where: { projectId_externalId: { projectId: event.projectId, externalId: key } },
-    });
-    if (ticket) {
-      candidates.push({
-        ticketId: ticket.id,
-        method: "metadata",
-        confidence: 0.65,
-        matchedValue: key,
-      });
+    const ticketId = await lookupTicketByExternalId(prisma, event.projectId, key, cache);
+    if (ticketId) {
+      candidates.push({ ticketId, method: "metadata", confidence: 0.65, matchedValue: key });
     }
   }
 
