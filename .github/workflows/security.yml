@@ -26,7 +26,7 @@ jobs:
 
       # Report everything (dependencies + IaC/config) to the Security tab.
       - name: Trivy scan (SARIF report)
-        uses: aquasecurity/trivy-action@0.34.2
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scanners: vuln,secret,config
@@ -46,7 +46,7 @@ jobs:
       # are reported to the Security tab (above) and tracked via Dependabot rather
       # than hard-blocking every PR on transitive advisories.
       - name: Trivy gate (fail on fixable CRITICAL)
-        uses: aquasecurity/trivy-action@0.34.2
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scanners: vuln
