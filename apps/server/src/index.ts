@@ -14,6 +14,7 @@ import { registerCIRoutes } from "./routes/ci.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerOAuthRoutes } from "./routes/oauth.js";
 import { registerInviteRoutes } from "./routes/invites.js";
+import { registerKeyRoutes } from "./routes/keys.js";
 
 const app = Fastify({
   logger: true,
@@ -49,6 +50,7 @@ await app.register(registerCIRoutes, { prefix: "/api/v1/ci" });
 await app.register(registerAuthRoutes, { prefix: "/api/v1/auth" });
 await app.register(registerOAuthRoutes, { prefix: "/api/v1/auth/oauth" });
 await app.register(registerInviteRoutes, { prefix: "/api/v1/invites" });
+await app.register(registerKeyRoutes, { prefix: "/api/v1/keys" });
 
 try {
   await app.listen({ port: config.port, host: "0.0.0.0" });

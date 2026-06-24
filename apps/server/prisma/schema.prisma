@@ -18,6 +18,8 @@ model Workspace {
   projects      Project[]
   users         User[]
   invites       Invite[]
+  apiKeys       ApiKey[]
+  sessions      Session[]
 }
 
 model Project {
@@ -38,6 +40,8 @@ model Project {
   sprints     Sprint[]
   teamMembers TeamMember[]
   invites     Invite[]
+  apiKeys     ApiKey[]
+  sessions    Session[]
 
   @@unique([workspaceId, slug])
 }
@@ -57,6 +61,8 @@ model User {
   events         Event[]
   memberships    TeamMember[]
   createdInvites Invite[]
+  apiKeys        ApiKey[]
+  sessions       Session[]
 
   @@unique([workspaceId, email])
 }
@@ -106,6 +112,7 @@ model Ticket {
   project       Project  @relation(fields: [projectId], references: [id])
   sprint        Sprint?  @relation(fields: [sprintId], references: [id])
   events        Event[]
+  sessions      Session[]
 
   @@unique([projectId, externalId])
 }
@@ -157,6 +164,7 @@ model Event {
   projectId     String
   userId        String
   ticketId      String?
+  sessionId     String?
   traceId       String?
   spanId        String?
   parentSpanId  String?
@@ -169,8 +177,65 @@ model Event {
   project       Project  @relation(fields: [projectId], references: [id])
   user          User     @relation(fields: [userId], references: [id])
   ticket        Ticket?  @relation(fields: [ticketId], references: [id])
+  session       Session? @relation(fields: [sessionId], references: [id])
 
   @@index([projectId, ticketId])
   @@index([projectId, timestamp])
   @@index([traceId])
+  @@index([sessionId])
+}
+
+// A personal/project API key used by collectors to authenticate ingest and
+// session calls. Modeled after Langfuse (pk/sk pair, dual hash) + Sentry
+// (per-key rate limits, rotation/revoke).
+model ApiKey {
+  id                  String    @id @default(uuid())
+  publicKey           String    @unique // e.g. bw_pk_...
+  hashedSecretKey     String    @unique // bcrypt hash for secure compare
+  fastHashedSecretKey String    @unique // sha256 hash for O(1) lookup
+  displaySecretKey    String            // masked, e.g. bw_sk_...wxyz
+  note                String?
+  scope               String    @default("workspace") // workspace | project
+  workspaceId         String
+  projectId           String?
+  userId              String
+  rateLimitWindow     Int?      // seconds
+  rateLimitCount      Int?      // max requests per window
+  expiresAt           DateTime?
+  isActive            Boolean   @default(true)
+  lastUsedAt          DateTime?
+  revokedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  workspace           Workspace @relation(fields: [workspaceId], references: [id])
+  project             Project?  @relation(fields: [projectId], references: [id])
+  user                User      @relation(fields: [userId], references: [id])
+
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+// An agent work session: groups events for one developer working a ticket
+// over a time window. The session resolves the ticket once; events inherit it.
+model Session {
+  id          String    @id @default(uuid())
+  workspaceId String
+  projectId   String
+  userId      String
+  ticketId    String?
+  source      String    // proxy, cli, ide-plugin, mcp
+  status      String    @default("active") // active | ended
+  branch      String?
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  project     Project   @relation(fields: [projectId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+  ticket      Ticket?   @relation(fields: [ticketId], references: [id])
+  events      Event[]
+
+  @@index([workspaceId])
+  @@index([projectId, status])
+  @@index([userId])
 }

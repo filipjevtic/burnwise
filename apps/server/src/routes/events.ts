@@ -5,6 +5,7 @@ import { getPrisma } from "../db.js";
 import { associateEvent } from "../services/association.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace, assertTicketInWorkspace } from "../middleware/scope.js";
+import { verifyApiKey } from "../services/apikey.js";
 
 export async function registerEventRoutes(
   app: FastifyInstance,
@@ -14,7 +15,19 @@ export async function registerEventRoutes(
 
   app.post("/ingest", async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
-    if (!authHeader || authHeader !== `Bearer ${config.ingestApiKey}`) {
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!token) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
+
+    // Two auth paths:
+    //  1. A personal API key (recommended): we trust the server-resolved
+    //     userId/workspaceId/projectId, NOT the client-provided values.
+    //  2. The shared INGEST_API_KEY (legacy/CI): client-provided identity is
+    //     trusted as before for backward compatibility.
+    const keyContext = await verifyApiKey(prisma, token);
+    const isSharedKey = token === config.ingestApiKey;
+    if (!keyContext && !isSharedKey) {
       return reply.status(401).send({ error: "Unauthorized" });
     }
 
@@ -28,7 +41,21 @@ export async function registerEventRoutes(
 
     for (const [index, event] of parsed.data.events.entries()) {
       try {
-        const association = await associateEvent(event);
+        // When authenticated with a personal key, override the identity fields
+        // from the key so events cannot be spoofed onto other users/workspaces.
+        const resolved = keyContext
+          ? {
+              workspaceId: keyContext.workspaceId,
+              userId: keyContext.userId,
+              projectId: keyContext.projectId ?? event.projectId,
+            }
+          : {
+              workspaceId: event.workspaceId,
+              userId: event.userId,
+              projectId: event.projectId,
+            };
+
+        const association = await associateEvent({ ...event, ...resolved });
 
         await prisma.event.create({
           data: {
@@ -36,9 +63,9 @@ export async function registerEventRoutes(
             eventType: event.eventType,
             timestamp: new Date(event.timestamp),
             source: event.source,
-            workspaceId: event.workspaceId,
-            projectId: event.projectId,
-            userId: event.userId,
+            workspaceId: resolved.workspaceId,
+            projectId: resolved.projectId,
+            userId: resolved.userId,
             ticketId: association.ticketId,
             traceId: event.traceId,
             spanId: event.spanId,
