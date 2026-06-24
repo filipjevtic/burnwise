@@ -112,6 +112,7 @@ function AppRoutes() {
           path="/"
           element={
             <DashboardPage
+              projectId={projectId}
               sprints={data.sprints}
               selectedSprint={data.selectedSprint}
               setSelectedSprint={data.setSelectedSprint}

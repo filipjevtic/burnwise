@@ -3,15 +3,18 @@ import { Select } from "../components/ui/select.js";
 import { Skeleton } from "../components/ui/skeleton.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 import { SprintSummary } from "../hooks/use-project-data.js";
-import { Coins, Clock, Ticket, Activity, BarChart3, FolderKanban } from "lucide-react";
+import { useDevelopers } from "../hooks/use-developers.js";
+import { Coins, Clock, Ticket, Activity, BarChart3, FolderKanban, Users } from "lucide-react";
 
 export function DashboardPage({
+  projectId,
   sprints,
   selectedSprint,
   setSelectedSprint,
   summary,
   loading,
 }: {
+  projectId: string;
   sprints: Array<{ id: string; name: string }>;
   selectedSprint: string | null;
   setSelectedSprint: (id: string) => void;
@@ -98,6 +101,8 @@ export function DashboardPage({
               )}
             </CardContent>
           </Card>
+
+          <DeveloperBreakdown projectId={projectId} sprintId={selectedSprint} />
         </>
       )}
 
@@ -111,6 +116,66 @@ export function DashboardPage({
         </div>
       )}
     </div>
+  );
+}
+
+function formatHours(seconds: number): string {
+  return (seconds / 3600).toFixed(2);
+}
+
+function DeveloperBreakdown({ projectId, sprintId }: { projectId: string; sprintId: string | null }) {
+  const { developers, loading, error } = useDevelopers(projectId, sprintId);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-5 w-5 text-muted-foreground" />
+          By developer
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">Error: {error}</div>
+        ) : loading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
+          </div>
+        ) : developers.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+            No attributed usage yet. Developers appear here once they use a personal API key.
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Developer</TableHead>
+                <TableHead className="text-right">Tokens</TableHead>
+                <TableHead className="text-right">Cost</TableHead>
+                <TableHead className="text-right">Time (h)</TableHead>
+                <TableHead className="text-right">Sessions</TableHead>
+                <TableHead className="text-right">Tickets</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {developers.map((d) => (
+                <TableRow key={d.userId}>
+                  <TableCell>
+                    <div className="font-medium">{d.name}</div>
+                    {d.email && <div className="text-sm text-muted-foreground">{d.email}</div>}
+                  </TableCell>
+                  <TableCell className="text-right">{d.tokens.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">${d.cost.toFixed(4)}</TableCell>
+                  <TableCell className="text-right">{formatHours(d.durationSeconds)}</TableCell>
+                  <TableCell className="text-right">{d.sessionCount}</TableCell>
+                  <TableCell className="text-right">{d.ticketCount}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
