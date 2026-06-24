@@ -29,6 +29,7 @@ export interface SessionListItem {
   cost: number;
   durationSeconds: number;
   eventCount: number;
+  tokenAnomaly?: boolean;
 }
 
 export interface SessionEvent {

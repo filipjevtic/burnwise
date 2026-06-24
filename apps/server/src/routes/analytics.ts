@@ -5,6 +5,7 @@ import { assertProjectInWorkspace } from "../middleware/scope.js";
 import { rollupEvents, aggregateByDeveloper } from "../services/rollup.js";
 import { bucketEvents, type Bucket } from "../services/trends.js";
 import { toCsv, type CsvColumn } from "../services/csv.js";
+import { detectHighOutliers } from "../services/anomaly.js";
 
 /**
  * Dashboard-facing analytics. These endpoints are JWT-authenticated (browser)
@@ -45,9 +46,14 @@ export async function registerAnalyticsRoutes(
       },
     });
 
+    const rollups = sessions.map((s) => rollupEvents(s.events));
+    // Flag sessions whose token usage is a statistical high outlier across the
+    // returned set, so unusually expensive sessions surface in the UI.
+    const tokenOutliers = detectHighOutliers(rollups.map((r) => r.tokens));
+
     return {
-      sessions: sessions.map((s) => {
-        const rollup = rollupEvents(s.events);
+      sessions: sessions.map((s, i) => {
+        const rollup = rollups[i];
         return {
           id: s.id,
           status: s.status,
@@ -66,6 +72,7 @@ export async function registerAnalyticsRoutes(
           cost: rollup.cost,
           durationSeconds: rollup.durationSeconds,
           eventCount: rollup.eventCount,
+          tokenAnomaly: tokenOutliers[i],
         };
       }),
     };

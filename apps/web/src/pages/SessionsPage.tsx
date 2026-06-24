@@ -104,7 +104,14 @@ export function SessionsPage({
                     <TableCell>
                       <Badge variant={s.status === "active" ? "default" : "secondary"}>{s.status}</Badge>
                     </TableCell>
-                    <TableCell className="text-right">{s.tokens.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">
+                      {s.tokenAnomaly && (
+                        <Badge variant="destructive" className="mr-2" title="Unusually high token usage">
+                          high
+                        </Badge>
+                      )}
+                      {s.tokens.toLocaleString()}
+                    </TableCell>
                     <TableCell className="text-right">${s.cost.toFixed(4)}</TableCell>
                     <TableCell className="text-right">{formatDuration(s.durationSeconds)}</TableCell>
                     <TableCell className="text-right">{s.eventCount}</TableCell>
