@@ -5,8 +5,9 @@ import { Input } from "../components/ui/input.js";
 import { Label } from "../components/ui/label.js";
 import { Select } from "../components/ui/select.js";
 import { useTeam, type TeamRole } from "../hooks/use-team.js";
+import { useApiKeys, type CreatedApiKey } from "../hooks/use-api-keys.js";
 import { useAuth } from "../context/auth.js";
-import { Wallet, Users, Link2, Copy, Check } from "lucide-react";
+import { Wallet, Users, Link2, Copy, Check, KeyRound, Trash2 } from "lucide-react";
 import { cn } from "../lib/utils.js";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -36,7 +37,41 @@ export function SettingsPage({
   const [memberDisplayName, setMemberDisplayName] = useState("");
   const [memberRole, setMemberRole] = useState<TeamRole>("member");
   const [teamActionLoading, setTeamActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"budget" | "team">("budget");
+  const [activeTab, setActiveTab] = useState<"budget" | "team" | "keys">("budget");
+
+  const { keys, loading: keysLoading, error: keysError, createKey, revokeKey } = useApiKeys();
+  const [keyNote, setKeyNote] = useState("");
+  const [keyScope, setKeyScope] = useState<"workspace" | "project">("workspace");
+  const [keyLoading, setKeyLoading] = useState(false);
+  const [newKey, setNewKey] = useState<CreatedApiKey | null>(null);
+  const [keyCopied, setKeyCopied] = useState(false);
+
+  async function handleCreateKey(e: React.FormEvent) {
+    e.preventDefault();
+    setKeyLoading(true);
+    setError(null);
+    setNewKey(null);
+    try {
+      const created = await createKey({
+        note: keyNote || undefined,
+        scope: keyScope,
+        projectId: keyScope === "project" ? projectId : undefined,
+      });
+      setNewKey(created);
+      setKeyNote("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create API key");
+    } finally {
+      setKeyLoading(false);
+    }
+  }
+
+  async function copyNewKey() {
+    if (!newKey) return;
+    await navigator.clipboard.writeText(newKey.secret);
+    setKeyCopied(true);
+    setTimeout(() => setKeyCopied(false), 2000);
+  }
 
   const [inviteRole, setInviteRole] = useState<TeamRole>("member");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -134,6 +169,18 @@ export function SettingsPage({
             <Users className="h-4 w-4" />
             Team
           </button>
+          <button
+            onClick={() => setActiveTab("keys")}
+            className={cn(
+              "flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors",
+              activeTab === "keys"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <KeyRound className="h-4 w-4" />
+            API Keys
+          </button>
         </div>
       </div>
 
@@ -201,6 +248,104 @@ export function SettingsPage({
                 {saving ? "Saving..." : "Save budget"}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "keys" && (
+        <Card className="max-w-3xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-muted-foreground" />
+              Personal API keys
+            </CardTitle>
+            <CardDescription>
+              Use a personal key (bw_sk_…) with the CLI, proxy, and IDE so your AI usage is
+              attributed to you. The secret is shown only once.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {keysError && <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">Error: {keysError}</div>}
+
+            <form onSubmit={handleCreateKey} className="flex flex-wrap items-end gap-2 rounded-md border p-4">
+              <div className="grid gap-1.5 flex-1 min-w-[160px]">
+                <Label htmlFor="keyNote" className="text-xs">Note (optional)</Label>
+                <Input
+                  id="keyNote"
+                  placeholder="e.g. laptop CLI"
+                  value={keyNote}
+                  onChange={(e) => setKeyNote(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="keyScope" className="text-xs">Scope</Label>
+                <Select
+                  id="keyScope"
+                  value={keyScope}
+                  onChange={(e) => setKeyScope(e.target.value as "workspace" | "project")}
+                >
+                  <option value="workspace">Workspace</option>
+                  <option value="project">This project</option>
+                </Select>
+              </div>
+              <Button type="submit" size="sm" disabled={keyLoading}>
+                {keyLoading ? "Creating…" : "Create key"}
+              </Button>
+            </form>
+
+            {newKey && (
+              <div className="space-y-2 rounded-md border border-green-300 bg-green-50 p-4">
+                <p className="text-sm font-medium text-green-900">
+                  Copy your new key now — it won&apos;t be shown again.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input value={newKey.secret} readOnly className="font-mono text-xs" />
+                  <Button variant="outline" size="sm" onClick={copyNewKey} className="shrink-0">
+                    {keyCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Your keys</h3>
+              {keysLoading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : keys.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No API keys yet.</p>
+              ) : (
+                <ul className="divide-y rounded-md border">
+                  {keys.map((key) => (
+                    <li key={key.id} className="flex items-center justify-between p-3">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-sm">{key.displaySecretKey}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {key.note || "(no note)"} · {key.scope}
+                          {key.lastUsedAt ? ` · last used ${new Date(key.lastUsedAt).toLocaleDateString()}` : " · never used"}
+                          {!key.isActive && " · revoked"}
+                        </span>
+                      </div>
+                      {key.isActive && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={async () => {
+                            try {
+                              await revokeKey(key.id);
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : "Failed to revoke key");
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

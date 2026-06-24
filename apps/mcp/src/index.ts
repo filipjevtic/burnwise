@@ -5,10 +5,11 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "./config.js";
-import { emitEvent } from "./events.js";
+import { emitEvent, startSession } from "./events.js";
 import type { Event } from "@burnwise/schema";
 
 let currentTicketId: string | undefined = process.env.ATS_TICKET_ID || undefined;
+let currentSessionId: string | undefined;
 
 const server = new Server(
   {
@@ -79,8 +80,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (name === "set_ticket") {
     const ticketId = (args as { ticketId: string }).ticketId;
     currentTicketId = ticketId;
+    // Bind a server-side session to this ticket so all subsequent events roll
+    // up to it. Best-effort: if it fails we still track the ticket locally.
+    currentSessionId = (await startSession(ticketId)) ?? undefined;
     return {
-      content: [{ type: "text", text: `Current ticket set to ${ticketId}` }],
+      content: [
+        {
+          type: "text",
+          text: currentSessionId
+            ? `Current ticket set to ${ticketId} (session ${currentSessionId})`
+            : `Current ticket set to ${ticketId}`,
+        },
+      ],
     };
   }
 
@@ -109,6 +120,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       projectId: config.projectId,
       userId: config.userId,
       ticketId: ticketId || currentTicketId,
+      sessionId: currentSessionId,
       metadata: {
         via: "mcp",
       },
