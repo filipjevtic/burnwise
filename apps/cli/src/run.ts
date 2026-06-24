@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { config } from "./config.js";
 import { getGitContext } from "./git.js";
 import { emitEvent } from "./events.js";
+import { readLocalSession } from "./session.js";
 import type { Event } from "@burnwise/schema";
 
 export interface RunCommandOptions {
@@ -14,7 +15,10 @@ export interface RunCommandOptions {
 export async function runCommand(options: RunCommandOptions): Promise<number> {
   const startTime = new Date().toISOString();
   const gitContext = getGitContext();
-  const ticketId = options.ticketId || config.ticketId;
+  const localSession = readLocalSession();
+  // Precedence: explicit --ticket-id > active session's ticket > env default.
+  const ticketId = options.ticketId || localSession?.ticketKey || config.ticketId;
+  const sessionId = localSession?.sessionId;
 
   return new Promise((resolve, reject) => {
     const useShell = process.platform === "win32";
@@ -41,6 +45,7 @@ export async function runCommand(options: RunCommandOptions): Promise<number> {
         projectId: config.projectId,
         userId: config.userId,
         ticketId,
+        sessionId,
         metadata: {
           command: options.command,
           args: options.args,

@@ -1,11 +1,13 @@
 import { config } from "./config.js";
 import type { Event } from "@burnwise/schema";
+import type { Attribution } from "./attribution.js";
 
 interface EmitLlmEventsInput {
   requestId: string;
   requestBody: unknown;
   responseBody: string;
   latencyMs: number;
+  attribution?: Attribution;
 }
 
 export async function emitLlmEvents(input: EmitLlmEventsInput): Promise<void> {
@@ -18,18 +20,29 @@ export async function emitLlmEvents(input: EmitLlmEventsInput): Promise<void> {
   const completionTokens = extractCompletionTokens(responseBody);
   const totalTokens = extractTotalTokens(responseBody) || promptTokens + completionTokens;
 
+  const attr = input.attribution;
+  // Identity: prefer per-request attribution headers, fall back to env config.
+  // When a personal key is supplied, the server re-derives user/workspace from
+  // it, so these values act as defaults/placeholders.
+  const userId = attr?.userId || config.userId;
+  const projectId = attr?.projectId || config.projectId;
+  const sharedMetadata: Record<string, unknown> = {
+    proxyProvider: config.provider,
+    ...(attr?.properties || {}),
+  };
+
   const requestEvent: Event = {
     eventId: crypto.randomUUID(),
     eventType: "llm.request",
     timestamp: now,
     source: "proxy",
     workspaceId: config.workspaceId,
-    projectId: config.projectId,
-    userId: config.userId,
+    projectId,
+    userId,
+    ticketId: attr?.ticketId,
+    sessionId: attr?.sessionId,
     traceId: input.requestId,
-    metadata: {
-      proxyProvider: config.provider,
-    },
+    metadata: { ...sharedMetadata },
     payload: {
       provider: config.provider,
       model,
@@ -44,13 +57,12 @@ export async function emitLlmEvents(input: EmitLlmEventsInput): Promise<void> {
     timestamp: now,
     source: "proxy",
     workspaceId: config.workspaceId,
-    projectId: config.projectId,
-    userId: config.userId,
+    projectId,
+    userId,
+    ticketId: attr?.ticketId,
+    sessionId: attr?.sessionId,
     traceId: input.requestId,
-    metadata: {
-      proxyProvider: config.provider,
-      requestId: input.requestId,
-    },
+    metadata: { ...sharedMetadata, requestId: input.requestId },
     payload: {
       provider: config.provider,
       model,
@@ -68,7 +80,9 @@ export async function emitLlmEvents(input: EmitLlmEventsInput): Promise<void> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${config.ingestApiKey}`,
+      // Prefer the caller's personal key (server derives identity); fall back
+      // to the shared ingest key for unattributed traffic.
+      Authorization: `Bearer ${attr?.key || config.ingestApiKey}`,
     },
     body: JSON.stringify({ events: [requestEvent, responseEvent] }),
   });

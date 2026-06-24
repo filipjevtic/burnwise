@@ -6,7 +6,7 @@ export async function emitEvent(event: Event): Promise<void> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${config.ingestApiKey}`,
+      Authorization: `Bearer ${config.apiKey}`,
     },
     body: JSON.stringify({ events: [event] }),
   });

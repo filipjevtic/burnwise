@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import { config } from "./config.js";
 import { forwardRequest } from "./upstream.js";
 import { emitLlmEvents } from "./events.js";
+import { extractAttribution, stripBurnwiseHeaders } from "./attribution.js";
 
 const app = Fastify({
   logger: true,
@@ -22,6 +23,10 @@ app.all("/*", async (request, reply) => {
   const requestId = crypto.randomUUID();
   const requestStart = Date.now();
 
+  // Read Burnwise attribution and strip it so it never reaches the provider.
+  const attribution = extractAttribution(request.headers);
+  const upstreamHeaders = stripBurnwiseHeaders(request.headers);
+
   let responseBody = "";
   let statusCode = 502;
   let headers: Record<string, string | undefined> = {};
@@ -30,7 +35,7 @@ app.all("/*", async (request, reply) => {
     const result = await forwardRequest({
       method: request.method,
       path: request.url,
-      headers: request.headers as Record<string, string>,
+      headers: upstreamHeaders as Record<string, string>,
       body: requestBody,
     });
     responseBody = result.responseBody;
@@ -51,6 +56,7 @@ app.all("/*", async (request, reply) => {
       requestBody,
       responseBody,
       latencyMs,
+      attribution,
     });
   } catch (err) {
     app.log.warn({ err }, "Failed to emit LLM events");
