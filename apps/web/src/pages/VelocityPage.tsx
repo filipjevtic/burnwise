@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card.js";
 import { Skeleton } from "../components/ui/skeleton.js";
 import { Badge } from "../components/ui/badge.js";
+import { Select } from "../components/ui/select.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 import { VelocityChart } from "../components/VelocityChart.js";
+import { TrendChart } from "../components/TrendChart.js";
 import { useVelocity } from "../hooks/use-velocity.js";
+import { useEfficiency, type SprintEfficiency } from "../hooks/use-efficiency.js";
 import { Gauge } from "lucide-react";
 
 function pct(value: number): string {
@@ -21,8 +25,36 @@ function completionBadge(rate: number, committed: number) {
   return <Badge variant="destructive">Under-delivered</Badge>;
 }
 
+type EfficiencyMetric = "cost" | "tokens" | "time";
+
+const EFFICIENCY_METRICS: Record<
+  EfficiencyMetric,
+  { label: string; select: (s: SprintEfficiency) => number; format: (v: number) => string; average: (e: { averageCostPerPoint: number; averageTokensPerPoint: number; averageDurationSecondsPerPoint: number }) => number }
+> = {
+  cost: {
+    label: "Cost / point",
+    select: (s) => s.costPerPoint,
+    format: (v) => `$${v.toFixed(2)}`,
+    average: (e) => e.averageCostPerPoint,
+  },
+  tokens: {
+    label: "Tokens / point",
+    select: (s) => s.tokensPerPoint,
+    format: (v) => v.toLocaleString(),
+    average: (e) => e.averageTokensPerPoint,
+  },
+  time: {
+    label: "Minutes / point",
+    select: (s) => s.durationSecondsPerPoint / 60,
+    format: (v) => `${v.toFixed(1)}m`,
+    average: (e) => e.averageDurationSecondsPerPoint / 60,
+  },
+};
+
 export function VelocityPage({ projectId }: { projectId: string }) {
   const { data, loading, error } = useVelocity(projectId, 3);
+  const { data: efficiency, loading: efficiencyLoading } = useEfficiency(projectId);
+  const [metric, setMetric] = useState<EfficiencyMetric>("cost");
 
   const chartData = data.sprints.map((s) => ({
     label: s.name,
@@ -30,6 +62,11 @@ export function VelocityPage({ projectId }: { projectId: string }) {
     completed: s.completedPoints,
     rollingAverage: s.rollingAveragePoints,
   }));
+
+  const metricCfg = EFFICIENCY_METRICS[metric];
+  const efficiencyPoints = efficiency.sprints
+    .filter((s) => s.completedPoints > 0)
+    .map((s) => ({ period: s.name, value: metricCfg.select(s) }));
 
   return (
     <div className="space-y-6">
@@ -120,6 +157,32 @@ export function VelocityPage({ projectId }: { projectId: string }) {
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between space-y-0">
+              <div className="space-y-1.5">
+                <CardTitle>Efficiency per point</CardTitle>
+                <CardDescription>AI effort to deliver one completed story point, by sprint. Lower trending = more efficient.</CardDescription>
+              </div>
+              <Select value={metric} onChange={(e) => setMetric(e.target.value as EfficiencyMetric)} className="w-44">
+                <option value="cost">Cost / point</option>
+                <option value="tokens">Tokens / point</option>
+                <option value="time">Minutes / point</option>
+              </Select>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {efficiencyLoading ? (
+                <Skeleton className="h-40" />
+              ) : (
+                <>
+                  <div className="text-sm text-muted-foreground">
+                    Average: <span className="font-medium text-foreground">{metricCfg.format(metricCfg.average(efficiency))}</span> per point
+                  </div>
+                  <TrendChart data={efficiencyPoints} format={metricCfg.format} />
+                </>
+              )}
             </CardContent>
           </Card>
         </>
