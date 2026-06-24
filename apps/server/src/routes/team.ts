@@ -1,22 +1,31 @@
-import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import { listTeamMembers, addTeamMember, removeTeamMember, updateTeamMember, type TeamRole } from "../services/team.js";
-import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { requireAuth } from "../middleware/auth.js";
+import { requireProjectRole } from "../middleware/rbac.js";
+import { getPrisma } from "../db.js";
 
 export async function registerTeamRoutes(
   app: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
+  const prisma = await getPrisma();
+
+  // Listing the team is read access (viewer+); this also enforces tenancy.
   app.get<{ Params: { projectId: string } }>("/:projectId", { preHandler: requireAuth }, async (request, reply) => {
+    const { projectId } = request.params;
+    if (!(await requireProjectRole(prisma, request, reply, projectId, "viewer"))) return;
     try {
-      const members = await listTeamMembers(request.params.projectId);
+      const members = await listTeamMembers(projectId);
       return { members };
     } catch (err) {
       return reply.status(500).send({ error: err instanceof Error ? err.message : "Failed to list members" });
     }
   });
 
-  app.post<{ Params: { projectId: string }; Body: { email: string; displayName?: string; role: TeamRole } }>("/:projectId", { preHandler: requireAdmin }, async (request, reply) => {
+  // Managing members requires project admin (workspace admins bypass).
+  app.post<{ Params: { projectId: string }; Body: { email: string; displayName?: string; role: TeamRole } }>("/:projectId", { preHandler: requireAuth }, async (request, reply) => {
     const { projectId } = request.params;
+    if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
     const { email, displayName, role } = request.body;
 
     if (!email || !role) {
@@ -31,8 +40,9 @@ export async function registerTeamRoutes(
     }
   });
 
-  app.put<{ Params: { projectId: string; userId: string }; Body: { role: TeamRole } }>("/:projectId/:userId", { preHandler: requireAdmin }, async (request, reply) => {
+  app.put<{ Params: { projectId: string; userId: string }; Body: { role: TeamRole } }>("/:projectId/:userId", { preHandler: requireAuth }, async (request, reply) => {
     const { projectId, userId } = request.params;
+    if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
     const { role } = request.body;
 
     if (!role) {
@@ -47,9 +57,11 @@ export async function registerTeamRoutes(
     }
   });
 
-  app.delete<{ Params: { projectId: string; userId: string } }>("/:projectId/:userId", { preHandler: requireAdmin }, async (request, reply) => {
+  app.delete<{ Params: { projectId: string; userId: string } }>("/:projectId/:userId", { preHandler: requireAuth }, async (request, reply) => {
+    const { projectId, userId } = request.params;
+    if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
     try {
-      await removeTeamMember(request.params.projectId, request.params.userId);
+      await removeTeamMember(projectId, userId);
       return { success: true };
     } catch (err) {
       return reply.status(500).send({ error: err instanceof Error ? err.message : "Failed to remove member" });

@@ -1,9 +1,11 @@
 import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { requireAdmin, type AuthPayload } from "../middleware/auth.js";
+import { requireAuth, type AuthPayload } from "../middleware/auth.js";
+import { requireProjectRole } from "../middleware/rbac.js";
 import { createInvite, getInvite, acceptInvite } from "../services/invite.js";
 import { config } from "../config.js";
+import { getPrisma } from "../db.js";
 import type { TeamRole } from "../services/team.js";
 
 function signToken(payload: AuthPayload): string {
@@ -14,11 +16,15 @@ export async function registerInviteRoutes(
   app: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
+  const prisma = await getPrisma();
+
+  // Inviting members to a project requires project admin (workspace admins
+  // bypass). The target project is read from the request body.
   app.post<{
     Body: { projectId: string; role?: TeamRole; email?: string };
   }>(
     "/",
-    { preHandler: requireAdmin },
+    { preHandler: requireAuth },
     async (request, reply) => {
       const user = (request as typeof request & { user: AuthPayload }).user;
       const { projectId, role = "member", email } = request.body;
@@ -26,6 +32,7 @@ export async function registerInviteRoutes(
       if (!projectId) {
         return reply.status(400).send({ error: "projectId is required" });
       }
+      if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
 
       try {
         const invite = await createInvite({
