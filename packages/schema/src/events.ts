@@ -15,6 +15,7 @@ export const baseEventSchema = z.object({
   projectId: z.string().min(1),
   userId: z.string().min(1),
   ticketId: z.string().optional(),
+  sessionId: z.string().optional(),
   traceId: z.string().optional(),
   spanId: z.string().optional(),
   parentSpanId: z.string().optional(),

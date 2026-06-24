@@ -1,5 +1,6 @@
 import type { Event } from "@burnwise/schema";
 import { getPrisma } from "../db.js";
+import { resolveSessionTicketId } from "./session.js";
 
 export interface AssociationResult {
   ticketId: string | null;
@@ -35,6 +36,17 @@ export async function associateEvent(event: Event): Promise<AssociationResult> {
         method: "explicit",
         confidence: 1.0,
       };
+    }
+  }
+
+  // Second-highest confidence: the event belongs to an active session that is
+  // already bound to a ticket. The session resolves the ticket once and all
+  // events in it inherit that association.
+  if (event.sessionId) {
+    const prisma = await getPrisma();
+    const ticketId = await resolveSessionTicketId(prisma, event.sessionId);
+    if (ticketId) {
+      return { ticketId, method: "session", confidence: 0.95 };
     }
   }
 

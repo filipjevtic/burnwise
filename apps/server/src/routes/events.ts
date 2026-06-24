@@ -67,6 +67,7 @@ export async function registerEventRoutes(
             projectId: resolved.projectId,
             userId: resolved.userId,
             ticketId: association.ticketId,
+            sessionId: event.sessionId ?? null,
             traceId: event.traceId,
             spanId: event.spanId,
             parentSpanId: event.parentSpanId,

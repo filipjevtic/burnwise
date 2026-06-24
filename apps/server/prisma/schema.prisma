@@ -222,6 +222,7 @@ model Session {
   projectId   String
   userId      String
   ticketId    String?
+  ticketKey   String?   // raw external key (e.g. PROJ-123), even if not yet synced
   source      String    // proxy, cli, ide-plugin, mcp
   status      String    @default("active") // active | ended
   branch      String?
