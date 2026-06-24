@@ -9,13 +9,10 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
+    "composite": true,
     "outDir": "./dist",
-    "rootDir": "./src",
-    "baseUrl": "."
+    "rootDir": "./src"
   },
   "include": ["src/**/*"],
-  "references": [
-    { "path": "../../packages/schema" },
-    { "path": "../../packages/pricing" }
-  ]
+  "exclude": ["node_modules"]
 }

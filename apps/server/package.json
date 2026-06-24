@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@burnwise/schema": "*",
+    "@burnwise/pricing": "*",
     "@fastify/cors": "^11.0.0",
     "@prisma/client": "^5.15.0",
     "bcryptjs": "^3.0.3",
