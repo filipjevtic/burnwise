@@ -7,6 +7,7 @@ import { bucketEvents, type Bucket } from "../services/trends.js";
 import { toCsv, type CsvColumn } from "../services/csv.js";
 import { detectHighOutliers } from "../services/anomaly.js";
 import { computeVelocity } from "../services/velocity.js";
+import { computeEfficiency } from "../services/efficiency.js";
 
 /**
  * Dashboard-facing analytics. These endpoints are JWT-authenticated (browser)
@@ -181,6 +182,44 @@ export async function registerAnalyticsRoutes(
         tickets: s.tickets,
       })),
       window
+    );
+  });
+
+  // Sprint efficiency: AI effort (cost/tokens/duration) per completed story
+  // point per sprint — the "are we getting cheaper/faster per point" trend.
+  app.get<{
+    Querystring: { projectId?: string };
+  }>("/efficiency", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    const { projectId } = request.query;
+    if (!projectId) {
+      return reply.status(400).send({ error: "projectId is required" });
+    }
+    if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
+
+    const sprints = await prisma.sprint.findMany({
+      where: { projectId },
+      orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
+      include: {
+        tickets: {
+          select: {
+            status: true,
+            storyPoints: true,
+            events: { select: { eventType: true, payload: true } },
+          },
+        },
+      },
+    });
+
+    return computeEfficiency(
+      sprints.map((s) => ({
+        id: s.id,
+        name: s.name,
+        startDate: s.startDate,
+        endDate: s.endDate,
+        status: s.status,
+        tickets: s.tickets,
+      }))
     );
   });
 
