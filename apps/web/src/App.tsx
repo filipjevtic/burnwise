@@ -5,6 +5,7 @@ import { AppLayout } from "./components/layout/AppLayout.js";
 import { useProjectData } from "./hooks/use-project-data.js";
 import { useProjects } from "./hooks/use-projects.js";
 import { DashboardPage } from "./pages/DashboardPage.js";
+import { SessionsPage } from "./pages/SessionsPage.js";
 import { ForecastPage } from "./pages/ForecastPage.js";
 import { IntegrationsPage } from "./pages/IntegrationsPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
@@ -118,6 +119,10 @@ function AppRoutes() {
               loading={data.summaryLoading}
             />
           }
+        />
+        <Route
+          path="/sessions"
+          element={<SessionsPage projectId={projectId} sprints={data.sprints} />}
         />
         <Route
           path="/forecast"

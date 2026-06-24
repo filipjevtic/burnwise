@@ -1,12 +1,13 @@
 import * as React from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Gauge, Plug, Settings, Sun, Moon, Monitor, Menu, X, LogOut } from "lucide-react";
+import { LayoutDashboard, Gauge, Plug, Settings, Sun, Moon, Monitor, Menu, X, LogOut, Activity } from "lucide-react";
 import { Button } from "../ui/button.js";
 import { useTheme } from "../../hooks/use-theme.js";
 import { useAuth } from "../../context/auth.js";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/sessions", label: "Sessions", icon: Activity },
   { to: "/forecast", label: "Forecast", icon: Gauge },
   { to: "/integrations", label: "Integrations", icon: Plug },
   { to: "/settings", label: "Settings", icon: Settings },
