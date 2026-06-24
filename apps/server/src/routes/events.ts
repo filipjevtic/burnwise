@@ -3,6 +3,8 @@ import { ingestBatchSchema, type IngestResponse } from "@burnwise/schema";
 import { config } from "../config.js";
 import { getPrisma } from "../db.js";
 import { associateEvent } from "../services/association.js";
+import { requireAuth, type AuthPayload } from "../middleware/auth.js";
+import { assertProjectInWorkspace, assertTicketInWorkspace } from "../middleware/scope.js";
 
 export async function registerEventRoutes(
   app: FastifyInstance,
@@ -61,7 +63,9 @@ export async function registerEventRoutes(
     return response;
   });
 
-  app.get("/by-ticket/:ticketId", async (request: FastifyRequest<{ Params: { ticketId: string } }>, reply: FastifyReply) => {
+  app.get<{ Params: { ticketId: string } }>("/by-ticket/:ticketId", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    if (!(await assertTicketInWorkspace(prisma, reply, request.params.ticketId, workspaceId))) return;
     const events = await prisma.event.findMany({
       where: { ticketId: request.params.ticketId },
       orderBy: { timestamp: "desc" },
@@ -70,8 +74,10 @@ export async function registerEventRoutes(
     return { events };
   });
 
-  app.get("/by-project/:projectId", async (request: FastifyRequest<{ Params: { projectId: string }; Querystring: { from?: string; to?: string } }>, reply: FastifyReply) => {
+  app.get<{ Params: { projectId: string }; Querystring: { from?: string; to?: string } }>("/by-project/:projectId", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
     const { projectId } = request.params;
+    if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
     const { from, to } = request.query;
     const events = await prisma.event.findMany({
       where: {

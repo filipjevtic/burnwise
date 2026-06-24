@@ -19,6 +19,21 @@ const app = Fastify({
   logger: true,
 });
 
+// Parse JSON while retaining the raw body string on the request, so webhook
+// routes can verify HMAC signatures computed over the exact bytes received.
+app.addContentTypeParser(
+  "application/json",
+  { parseAs: "string" },
+  (req, body, done) => {
+    (req as { rawBody?: string }).rawBody = typeof body === "string" ? body : body.toString();
+    try {
+      done(null, body === "" ? undefined : JSON.parse(body as string));
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  }
+);
+
 await app.register(cors, { origin: true });
 
 await app.register(registerHealthRoutes, { prefix: "/health" });

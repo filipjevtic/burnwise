@@ -11,7 +11,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "typecheck": "tsc --noEmit",
-    "test": "node --test dist/*.test.js"
+    "test": "node --test dist/services/*.test.js dist/lib/*.test.js"
   },
   "dependencies": {
     "@burnwise/schema": "*",

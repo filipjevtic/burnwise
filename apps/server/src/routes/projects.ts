@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from "fastify";
 import { getPrisma } from "../db.js";
 import { requireAuth, requireAdmin, type AuthPayload } from "../middleware/auth.js";
+import { assertProjectInWorkspace, assertSprintInWorkspace } from "../middleware/scope.js";
 
 export async function registerProjectRoutes(
   app: FastifyInstance,
@@ -44,6 +45,8 @@ export async function registerProjectRoutes(
   );
 
   app.put<{ Params: { projectId: string }; Body: { tokenBudget?: number; costBudget?: number; tokenBudgetAlertThreshold?: number; costBudgetAlertThreshold?: number } }>("/:projectId", { preHandler: requireAdmin }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    if (!(await assertProjectInWorkspace(prisma, reply, request.params.projectId, workspaceId))) return;
     const project = await prisma.project.update({
       where: { id: request.params.projectId },
       data: {
@@ -57,6 +60,8 @@ export async function registerProjectRoutes(
   });
 
   app.put<{ Params: { sprintId: string }; Body: { tokenBudget?: number; costBudget?: number; tokenBudgetAlertThreshold?: number; costBudgetAlertThreshold?: number } }>("/sprint/:sprintId", { preHandler: requireAdmin }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    if (!(await assertSprintInWorkspace(prisma, reply, request.params.sprintId, workspaceId))) return;
     const sprint = await prisma.sprint.update({
       where: { id: request.params.sprintId },
       data: {

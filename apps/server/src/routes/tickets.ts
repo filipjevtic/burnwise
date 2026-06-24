@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from "fastify";
 import { getPrisma } from "../db.js";
+import { requireAuth, type AuthPayload } from "../middleware/auth.js";
+import { assertProjectInWorkspace, assertTicketInWorkspace } from "../middleware/scope.js";
 
 export async function registerTicketRoutes(
   app: FastifyInstance,
@@ -7,7 +9,9 @@ export async function registerTicketRoutes(
 ) {
   const prisma = await getPrisma();
 
-  app.get("/project/:projectId", async (request: FastifyRequest<{ Params: { projectId: string } }>, reply: FastifyReply) => {
+  app.get<{ Params: { projectId: string } }>("/project/:projectId", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    if (!(await assertProjectInWorkspace(prisma, reply, request.params.projectId, workspaceId))) return;
     const tickets = await prisma.ticket.findMany({
       where: { projectId: request.params.projectId },
       include: { sprint: true },
@@ -16,7 +20,9 @@ export async function registerTicketRoutes(
     return { tickets };
   });
 
-  app.get("/summary/:ticketId", async (request: FastifyRequest<{ Params: { ticketId: string } }>, reply: FastifyReply) => {
+  app.get<{ Params: { ticketId: string } }>("/summary/:ticketId", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    if (!(await assertTicketInWorkspace(prisma, reply, request.params.ticketId, workspaceId))) return;
     const ticket = await prisma.ticket.findUnique({
       where: { id: request.params.ticketId },
       include: { events: true },

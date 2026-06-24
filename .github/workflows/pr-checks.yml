@@ -32,6 +32,9 @@ jobs:
       - name: Generate Prisma client
         run: npm run db:generate --workspace=apps/server
 
+      - name: Lint
+        run: npm run lint
+
       - name: Typecheck
         run: npm run typecheck --workspaces
 
@@ -39,7 +42,7 @@ jobs:
         run: npm run build --workspaces
 
       - name: Unit tests
-        run: npm run test --workspace=packages/schema --if-present
+        run: npm run test --workspaces --if-present
 
       - name: Start PostgreSQL
         run: docker compose up -d postgres

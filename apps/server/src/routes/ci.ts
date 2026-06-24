@@ -2,6 +2,9 @@ import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyRepl
 import { randomUUID } from "crypto";
 import { getPrisma } from "../db.js";
 import { extractTicketKeys } from "../services/association.js";
+import { requireAuth, type AuthPayload } from "../middleware/auth.js";
+import { assertProjectInWorkspace } from "../middleware/scope.js";
+import { verifyCiWebhook } from "../lib/webhook.js";
 
 interface GitHubActionsWorkflowRun {
   action: string;
@@ -71,6 +74,18 @@ export async function registerCIRoutes(
     reply: FastifyReply
   ) => {
     const { projectId } = request.params;
+
+    // Verify the webhook is authentic when a shared secret is configured.
+    const verification = verifyCiWebhook(request as FastifyRequest & { rawBody?: string });
+    if (!verification.ok) {
+      return reply.status(401).send({ error: verification.reason || "Unauthorized webhook" });
+    }
+    if (verification.skipped) {
+      request.log.warn(
+        "CI webhook accepted without verification — set CI_WEBHOOK_SECRET to enable signature checks"
+      );
+    }
+
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project) {
       return reply.status(404).send({ error: "Project not found" });
@@ -167,14 +182,12 @@ export async function registerCIRoutes(
     };
   });
 
-  app.get("/summary/:projectId", async (
-    request: FastifyRequest<{ Params: { projectId: string } }>,
-    reply: FastifyReply
+  app.get<{ Params: { projectId: string } }>("/summary/:projectId", { preHandler: requireAuth }, async (
+    request,
+    reply
   ) => {
-    const project = await prisma.project.findUnique({ where: { id: request.params.projectId } });
-    if (!project) {
-      return reply.status(404).send({ error: "Project not found" });
-    }
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    if (!(await assertProjectInWorkspace(prisma, reply, request.params.projectId, workspaceId))) return;
 
     const events = await prisma.event.findMany({
       where: { projectId: request.params.projectId, eventType: "ci.run" },
