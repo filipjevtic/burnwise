@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card.js";
 import { Select } from "../components/ui/select.js";
 import { Skeleton } from "../components/ui/skeleton.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 import { SprintSummary } from "../hooks/use-project-data.js";
 import { useDevelopers } from "../hooks/use-developers.js";
-import { Coins, Clock, Ticket, Activity, BarChart3, FolderKanban, Users } from "lucide-react";
+import { useTrends, type TrendBucket } from "../hooks/use-trends.js";
+import { TrendChart } from "../components/TrendChart.js";
+import { Coins, Clock, Ticket, Activity, BarChart3, FolderKanban, Users, LineChart } from "lucide-react";
 
 export function DashboardPage({
   projectId,
@@ -65,6 +68,8 @@ export function DashboardPage({
             <StatCard label="Events" value={summary.summary.eventCount} icon={Activity} />
           </div>
 
+          <UsageTrends projectId={projectId} sprintId={selectedSprint} />
+
           <Card>
             <CardHeader>
               <CardTitle>Tickets</CardTitle>
@@ -121,6 +126,57 @@ export function DashboardPage({
 
 function formatHours(seconds: number): string {
   return (seconds / 3600).toFixed(2);
+}
+
+type TrendMetric = "tokens" | "cost" | "duration";
+
+function UsageTrends({ projectId, sprintId }: { projectId: string; sprintId: string | null }) {
+  const [metric, setMetric] = useState<TrendMetric>("tokens");
+  const [bucket, setBucket] = useState<TrendBucket>("day");
+  const { points, loading, error } = useTrends(projectId, sprintId, bucket);
+
+  const chartData = points.map((p) => ({
+    period: p.period,
+    value: metric === "tokens" ? p.tokens : metric === "cost" ? p.cost : p.durationSeconds / 3600,
+  }));
+
+  const format =
+    metric === "tokens"
+      ? (v: number) => v.toLocaleString()
+      : metric === "cost"
+        ? (v: number) => `$${v.toFixed(4)}`
+        : (v: number) => `${v.toFixed(2)}h`;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle className="flex items-center gap-2">
+          <LineChart className="h-5 w-5 text-muted-foreground" />
+          Usage trends
+        </CardTitle>
+        <div className="flex items-center gap-2">
+          <Select value={metric} onChange={(e) => setMetric(e.target.value as TrendMetric)} aria-label="Metric" className="w-32">
+            <option value="tokens">Tokens</option>
+            <option value="cost">Cost</option>
+            <option value="duration">Duration</option>
+          </Select>
+          <Select value={bucket} onChange={(e) => setBucket(e.target.value as TrendBucket)} aria-label="Bucket" className="w-28">
+            <option value="day">Daily</option>
+            <option value="week">Weekly</option>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">Error: {error}</div>
+        ) : loading ? (
+          <Skeleton className="h-40" />
+        ) : (
+          <TrendChart data={chartData} format={format} />
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function DeveloperBreakdown({ projectId, sprintId }: { projectId: string; sprintId: string | null }) {
