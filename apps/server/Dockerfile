@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine3.20 AS builder
 
 WORKDIR /app
 
@@ -23,14 +23,13 @@ RUN find /app/packages -name "*.tsbuildinfo" -delete \
 RUN npm run db:generate --workspace=apps/server
 RUN npm run build --workspace=apps/server
 
-FROM node:20-alpine AS runner
+FROM node:20-alpine3.20 AS runner
 
 WORKDIR /app
 
 RUN apk add --no-cache openssl
 
 ENV NODE_ENV=production
-ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/schema/dist ./packages/schema/dist
@@ -43,6 +42,12 @@ COPY --from=builder /app/apps/server/prisma ./apps/server/prisma
 
 WORKDIR /app/apps/server
 
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
 
 CMD ["node", "dist/index.js"]
