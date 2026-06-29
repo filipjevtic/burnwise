@@ -18,6 +18,7 @@ RUN npm run build --workspace=apps/web
 FROM nginx:alpine AS runner
 
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 
 RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /var/run \
   && touch /var/run/nginx.pid && chown nginx:nginx /var/run/nginx.pid
