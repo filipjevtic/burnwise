@@ -1,5 +1,5 @@
 import type { FastifyReply } from "fastify";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 
 /**
  * Resolve a project and assert it belongs to the caller's workspace.

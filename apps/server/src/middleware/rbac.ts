@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import type { AuthPayload } from "./auth.js";
 import { assertProjectInWorkspace } from "./scope.js";
 import { effectiveProjectRole, roleSatisfies, type ProjectRole } from "../lib/roles.js";

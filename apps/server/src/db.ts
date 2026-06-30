@@ -1,13 +1,13 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "./generated/prisma/client.js";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { config } from "./config.js";
 
 let prisma: PrismaClient | null = null;
 
 export async function getPrisma(): Promise<PrismaClient> {
   if (!prisma) {
-    prisma = new PrismaClient({
-      datasources: { db: { url: config.databaseUrl } },
-    });
+    const adapter = new PrismaPg(config.databaseUrl);
+    prisma = new PrismaClient({ adapter });
   }
   return prisma;
 }

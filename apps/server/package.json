@@ -4,14 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc && prisma generate",
+    "build": "prisma generate && tsc",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
+    "start": "tsx src/index.ts",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "typecheck": "tsc --noEmit",
-    "test": "node --test dist/services/*.test.js dist/lib/*.test.js",
+    "test": "tsx --test src/services/*.test.ts src/lib/*.test.ts",
     "test:coverage": "c8 npm test"
   },
   "dependencies": {
@@ -19,10 +19,12 @@
     "@burnwise/schema": "*",
     "@fastify/cors": "^11.0.0",
     "@fastify/rate-limit": "^10.0.0",
-    "@prisma/client": "^5.15.0",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "bcryptjs": "^3.0.3",
     "fastify": "^5.9.0",
     "jsonwebtoken": "^9.0.3",
+    "pg": "^8.22.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -30,7 +32,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.0.0",
     "c8": "^10.1.3",
-    "prisma": "^5.15.0",
+    "prisma": "^7.8.0",
     "tsx": "^4.15.0",
     "typescript": "^5.5.0"
   }

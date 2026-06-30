@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Event } from "@burnwise/schema";
 import { getPrisma } from "../db.js";
 import { resolveSessionTicketId } from "./session.js";

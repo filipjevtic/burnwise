@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 
 /**
  * Agent-session service. A session groups a developer's work (LLM calls,

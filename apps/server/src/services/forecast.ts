@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { rollupEvents, aggregateByDeveloper, type DeveloperRollup } from "./rollup.js";
 
 export interface HistoricalStats {

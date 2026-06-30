@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from "fastify";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "../generated/prisma/client.js";
 import { ingestBatchSchema, type IngestResponse } from "@burnwise/schema";
 import { config } from "../config.js";
 import { getPrisma } from "../db.js";

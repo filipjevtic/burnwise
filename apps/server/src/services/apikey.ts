@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 
 /**
  * API key service. Keys follow the Langfuse/Sentry model:
