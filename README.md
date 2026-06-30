@@ -79,6 +79,13 @@ For production deployment, see [docs/SELFHOST.md](docs/SELFHOST.md).
 After setup, generate a personal API key in **Settings → API Keys** (`bw_sk_...`) and bind your agent work to a ticket. Whatever tool you use, the strongest available signal wins (explicit ticket > git branch > prompt text). See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for copy-paste setup.
 
 ```bash
+# MCP — Claude Code calls set_ticket and report_usage automatically
+# Add to your Claude Code MCP config:
+# { "command": "npx", "args": ["tsx", "apps/mcp/src/index.ts"],
+#   "env": { "ATS_API_KEY": "bw_sk_...", "ATS_PROJECT_ID": "..." } }
+```
+
+```bash
 # CLI — start a session bound to a ticket, then run your agent
 export ATS_API_KEY=bw_sk_...        # personal key from Settings → API Keys
 export ATS_PROJECT_ID=...           # your project id
@@ -108,6 +115,7 @@ flowchart TB
         B[API proxy]
         C[CLI]
         D[CI/CD webhooks]
+        Z[MCP server]
     end
 
     subgraph Server["apps/server Fastify API"]
@@ -137,6 +145,7 @@ flowchart TB
     B --> E
     C --> E
     D --> K
+    Z --> E
     E --> F
     F --> R
     G --> R
@@ -152,6 +161,10 @@ flowchart TB
 ```
 
 For detailed diagrams and data model, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Tech stack
+
+Node.js 22 · TypeScript 6 · Fastify 5 · Prisma 7 · PostgreSQL · React 19 · Vite 8 · Tailwind CSS 4 · Playwright
 
 ## Repository layout
 
@@ -208,7 +221,7 @@ npm run build --workspaces
 npm run test --workspace=packages/schema
 npm run test --workspace=apps/server
 
-# Run E2E tests (requires server + web to be running, or uses webServer config)
+# Run E2E tests (28 tests — auth, sessions, ingest, settings, exports, and more)
 npm run e2e --workspace=apps/web
 
 # Run E2E in UI mode
