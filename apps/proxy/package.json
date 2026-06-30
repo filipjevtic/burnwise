@@ -13,7 +13,7 @@
   "dependencies": {
     "@burnwise/schema": "*",
     "@burnwise/pricing": "*",
-    "fastify": "^5.8.0",
+    "fastify": "^5.9.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
