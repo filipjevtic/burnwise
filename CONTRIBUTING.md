@@ -4,7 +4,7 @@ Thank you for your interest in contributing! This document outlines how to get s
 
 ## Development setup
 
-1. **Prerequisites**: Node.js 20+, Docker, and Docker Compose.
+1. **Prerequisites**: Node.js 22+, Docker, and Docker Compose.
 2. **Install dependencies**:
    ```bash
    npm install

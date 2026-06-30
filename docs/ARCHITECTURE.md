@@ -141,6 +141,7 @@ sequenceDiagram
 | VS Code extension | `apps/vscode` | IDE collector |
 | MCP server | `apps/mcp` | Ticket binding + activity for Claude Code / MCP clients |
 | Schema | `packages/schema` | Zod event schemas |
+| Pricing | `packages/pricing` | LLM cost lookup table |
 
 ## Deployment
 

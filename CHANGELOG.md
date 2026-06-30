@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- GitLab OAuth and generic OIDC SSO support with conditional button rendering (#122)
+- `GET /api/v1/auth/providers` endpoint for frontend to discover available SSO providers
+- `report_usage` MCP tool for self-reported LLM token tracking (#144)
+- Comprehensive Playwright E2E test suite — 28 tests covering auth, API keys, sessions, ingest, team management, invites, CSV export, and all pages (#124)
+- E2E test helpers (`api.ts`, `seed.ts`) for typed API calls and data seeding
+- esbuild production bundler for the server — single `dist/index.mjs` output (#137)
+- `prisma.config.ts` for Prisma 7 datasource configuration
+
+### Changed
+- Upgraded Node.js from 20 to 22 LTS (#131)
+- Upgraded TypeScript from 5.9 to 6.0 (#132)
+- Upgraded Vite from 5.4 to 8.1 and @vitejs/plugin-react from 4.7 to 6.0 (#133)
+- Upgraded React from 18 to 19 — refactored 20 forwardRef components to ref-as-prop pattern (#134)
+- Upgraded Tailwind CSS from 3.4 to 4.3 — CSS-first config, automated migration (#135)
+- Upgraded Prisma from 5.22 to 7.8 — driver adapter, generated client output, new config format (#136)
+- Server production runtime: `node dist/index.mjs` (esbuild bundle) replaces `tsx src/index.ts`
+- Server listens on `::` (dual-stack IPv4+IPv6) instead of `0.0.0.0`
+- Docker actions updated to v4/v6 for Node 22 compatibility (#130)
+
+### Fixed
+- CORS config only allowed GET/HEAD/POST — added PUT/DELETE/PATCH so Settings mutations work (#125)
+- SPA page refresh returning 404 in Docker nginx — added `try_files` fallback (#123)
+- Docker server image crash on ARM64 — removed hardcoded x86_64 Prisma engine path (#121)
+- Docker tag format error on tag pushes — fixed `sha` prefix template (#130)
+- SSO buttons showing "provider not configured" error — now hidden when unconfigured (#122)
+- Optimistic UI updates for API key revoke, team member remove, and role change (#125)
+
 ## [0.1.0] - 2026-06-23
 
 ### Added

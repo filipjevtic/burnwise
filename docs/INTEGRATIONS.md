@@ -94,8 +94,8 @@ exposes tools to bind the active ticket and emit activity.
 {
   "mcpServers": {
     "burnwise": {
-      "command": "node",
-      "args": ["/path/to/burnwise/apps/mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["tsx", "apps/mcp/src/index.ts"],
       "env": {
         "ATS_SERVER_URL": "http://localhost:3000",
         "ATS_API_KEY": "bw_sk_...",
@@ -113,10 +113,15 @@ Tools:
 - `get_ticket` — return the current ticket.
 - `emit_session_activity { activityType, durationSeconds, ticketId? }` — record
   agent activity.
+- `report_usage { model, promptTokens, completionTokens, totalTokens, costUsd?, ticketId? }` — 
+  report LLM token usage for the current session. Call after completing a task
+  to track AI cost when the proxy can't intercept calls (e.g. Claude Code,
+  Vertex AI, Bedrock).
 
-A typical agent flow: call `set_ticket PROJ-123` at task start, route model
-calls through the proxy for token capture, and let activity roll up to the
-session.
+A typical agent flow: call `set_ticket PROJ-123` at task start, work on the
+task, then call `report_usage` with token counts to track AI cost. If routing
+model calls through the proxy, token capture is automatic and `report_usage`
+is not needed.
 
 ## VS Code extension (`apps/vscode`)
 

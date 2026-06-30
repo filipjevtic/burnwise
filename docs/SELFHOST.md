@@ -9,7 +9,7 @@ This document explains how to run Burnwise on your own infrastructure.
 ## Prerequisites
 
 - Docker and Docker Compose, or a PostgreSQL 15+ database
-- Node.js 20+ (for local development only)
+- Node.js 22+ (for local development only)
 
 ## Option 1: Docker Compose (recommended)
 
