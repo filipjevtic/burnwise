@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card.js";
 import { Button } from "../components/ui/button.js";
 import { Input } from "../components/ui/input.js";
@@ -32,6 +32,22 @@ export function SettingsPage({
   const { token, user } = useAuth();
   const isAdmin = user?.role === "admin";
   const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+  useEffect(() => {
+    if (!projectId || !token) return;
+    fetch(`${API_URL}/api/v1/projects`, { headers: authHeader })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const project = data?.projects?.find((p: { id: string }) => p.id === projectId);
+        if (!project) return;
+        if (project.tokenBudget != null) setTokenBudget(String(project.tokenBudget));
+        if (project.costBudget != null) setCostBudget(String(project.costBudget));
+        if (project.tokenBudgetAlertThreshold != null) setTokenThreshold(String(project.tokenBudgetAlertThreshold));
+        if (project.costBudgetAlertThreshold != null) setCostThreshold(String(project.costBudgetAlertThreshold));
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, token]);
   const { members, loading: teamLoading, error: teamError, addMember, removeMember, updateMember } = useTeam(projectId);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberDisplayName, setMemberDisplayName] = useState("");

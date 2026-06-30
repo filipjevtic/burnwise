@@ -15,7 +15,7 @@ export async function registerProjectRoutes(
     const projects = await prisma.project.findMany({
       where: { workspaceId },
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, slug: true, createdAt: true },
+      select: { id: true, name: true, slug: true, createdAt: true, tokenBudget: true, costBudget: true, tokenBudgetAlertThreshold: true, costBudgetAlertThreshold: true },
     });
     return reply.send({ projects });
   });
