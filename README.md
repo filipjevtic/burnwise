@@ -28,6 +28,30 @@
 - [x] **First-run setup wizard** — no seed data; create your workspace and admin account on first visit.
 - [x] **Self-host in one command** with Docker Compose.
 
+## Works with your AI tools
+
+| Tool | Integration | Token tracking |
+|------|-------------|----------------|
+| **Claude Code** | MCP server (`set_ticket`, `report_usage`) | Self-reported via MCP |
+| **Cursor** | API proxy (`OPENAI_BASE_URL`) | Automatic |
+| **Aider** | API proxy (`OPENAI_BASE_URL`) | Automatic |
+| **Continue.dev** | API proxy (configurable base URL) | Automatic |
+| **Cody (Sourcegraph)** | API proxy (configurable base URL) | Automatic |
+| **OpenAI SDK / custom agents** | API proxy + `X-Burnwise-*` headers | Automatic |
+| **Any CLI tool** | CLI wrapper (`ats -- <command>`) | Session activity |
+
+**Coming soon:**
+
+| Tool | Planned integration |
+|------|---------------------|
+| **GitHub Copilot** | VS Code extension telemetry |
+| **Windsurf / Devin** | VS Code extension telemetry |
+| **Anthropic API (direct)** | Anthropic-format proxy |
+| **AWS Bedrock** | Cloud billing integration |
+| **GCP Vertex AI** | Cloud Logging integration |
+
+See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for copy-paste setup instructions.
+
 ## Quick start
 
 ### Docker Compose (recommended)
