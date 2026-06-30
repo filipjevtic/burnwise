@@ -81,7 +81,7 @@ export function AppLayout({
               id="projectSelect"
               value={projectId}
               onChange={(e) => onProjectChange(e.target.value)}
-              className="mt-1 flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="mt-1 flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
             >
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
@@ -171,7 +171,7 @@ export function AppLayout({
                     id="projectSelectMobile"
                     value={projectId}
                     onChange={(e) => { onProjectChange(e.target.value); setMobileOpen(false); }}
-                    className="mt-1 flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="mt-1 flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     {projects.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
