@@ -64,7 +64,7 @@ export function TrendChart({
         {data.length > 1 && <span>{data[data.length - 1].period}</span>}
       </div>
       {hover !== null && (
-        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-md border bg-background px-2 py-1 text-xs shadow">
+        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-md border bg-background px-2 py-1 text-xs shadow-sm">
           <span className="font-medium">{data[hover].period}</span>: {format(data[hover].value)}
         </div>
       )}

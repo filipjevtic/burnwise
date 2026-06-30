@@ -103,7 +103,7 @@ export function VelocityChart({ data, height = 240 }: { data: VelocityChartPoint
       </div>
 
       {hover !== null && (
-        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-md border bg-background px-3 py-2 text-xs shadow">
+        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-md border bg-background px-3 py-2 text-xs shadow-sm">
           <div className="font-medium">{data[hover].label}</div>
           <div>Committed: {data[hover].committed}</div>
           <div>Completed: {data[hover].completed}</div>

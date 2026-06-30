@@ -14,24 +14,24 @@
     "e2e:update-snapshots": "playwright test --grep @visual --update-snapshots"
   },
   "dependencies": {
+    "@tailwindcss/forms": "^0.5.11",
+    "@tailwindcss/postcss": "^4.3.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.22.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "@tailwindcss/forms": "^0.5.11",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/react-router-dom": "^5.3.3",
     "@vitejs/plugin-react": "^6.0.3",
-    "autoprefixer": "^10.5.2",
     "postcss": "^8.5.16",
-    "tailwindcss": "^3.4.19",
     "typescript": "^5.5.0",
     "vite": "^8.1.0"
   }
