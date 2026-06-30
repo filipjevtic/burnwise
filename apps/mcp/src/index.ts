@@ -49,6 +49,41 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: "report_usage",
+        description:
+          "Report LLM token usage for the current session. Call this after completing a task to track AI cost.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            model: {
+              type: "string",
+              description: "Model name, e.g. claude-sonnet-4-20250514",
+            },
+            promptTokens: {
+              type: "number",
+              description: "Number of input/prompt tokens",
+            },
+            completionTokens: {
+              type: "number",
+              description: "Number of output/completion tokens",
+            },
+            totalTokens: {
+              type: "number",
+              description: "Total tokens (prompt + completion)",
+            },
+            costUsd: {
+              type: "number",
+              description: "Cost in USD if known",
+            },
+            ticketId: {
+              type: "string",
+              description: "Override ticket ID for this usage",
+            },
+          },
+          required: ["model", "promptTokens", "completionTokens", "totalTokens"],
+        },
+      },
+      {
         name: "emit_session_activity",
         description: "Emit a session activity event with optional duration and ticket association.",
         inputSchema: {
@@ -98,6 +133,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (name === "get_ticket") {
     return {
       content: [{ type: "text", text: currentTicketId || "No ticket set" }],
+    };
+  }
+
+  if (name === "report_usage") {
+    const { model, promptTokens, completionTokens, totalTokens, costUsd, ticketId } = args as {
+      model: string;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      costUsd?: number;
+      ticketId?: string;
+    };
+
+    const event: Event = {
+      eventId: crypto.randomUUID(),
+      eventType: "llm.response",
+      timestamp: new Date().toISOString(),
+      source: "cli",
+      workspaceId: config.workspaceId,
+      projectId: config.projectId,
+      userId: config.userId,
+      ticketId: ticketId || currentTicketId,
+      sessionId: currentSessionId,
+      metadata: {
+        via: "mcp",
+      },
+      payload: {
+        provider: "anthropic",
+        model,
+        promptTokens,
+        completionTokens,
+        totalTokens,
+        costUsd,
+      },
+    };
+
+    await emitEvent(event);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Reported ${totalTokens} tokens (${model})${costUsd ? ` · $${costUsd.toFixed(4)}` : ""}`,
+        },
+      ],
     };
   }
 
