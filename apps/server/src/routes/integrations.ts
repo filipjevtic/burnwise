@@ -4,6 +4,7 @@ import { syncGitHub, syncJira, syncGitLab } from "../integrations/index.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireProjectRole } from "../middleware/rbac.js";
 import { encryptSecret } from "../lib/crypto.js";
+import { assertSafeIntegrationUrl, SsrfError } from "../lib/ssrf.js";
 
 export async function registerIntegrationRoutes(
   app: FastifyInstance,
@@ -60,6 +61,13 @@ export async function registerIntegrationRoutes(
 
     if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
 
+    try {
+      await assertSafeIntegrationUrl(baseUrl);
+    } catch (err) {
+      if (err instanceof SsrfError) return reply.status(400).send({ error: err.message });
+      throw err;
+    }
+
     await prisma.issueTrackerConfig.upsert({
       where: { projectId },
       update: {
@@ -97,6 +105,13 @@ export async function registerIntegrationRoutes(
     }
 
     if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
+
+    try {
+      await assertSafeIntegrationUrl(baseUrl);
+    } catch (err) {
+      if (err instanceof SsrfError) return reply.status(400).send({ error: err.message });
+      throw err;
+    }
 
     await prisma.issueTrackerConfig.upsert({
       where: { projectId },

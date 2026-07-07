@@ -16,6 +16,10 @@ export const config = {
     .split(",")
     .map((d) => d.trim().toLowerCase())
     .filter(Boolean),
+  // Allow issue-tracker integration URLs (Jira/GitLab baseUrl) to resolve to
+  // private IP ranges. Loopback and link-local (cloud metadata) are always
+  // blocked. Enable only for self-hosted trackers on an internal network.
+  integrationAllowPrivateHosts: process.env.INTEGRATION_ALLOW_PRIVATE_HOSTS === "true",
   // Key used to encrypt secrets at rest (integration tokens, etc.).
   // Should be a 32-byte value (hex or base64). Falls back to deriving from
   // JWT_SECRET in dev so local setups keep working.
