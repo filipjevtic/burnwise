@@ -16,6 +16,9 @@ export function OAuthCallbackPage() {
       const messages: Record<string, string> = {
         oauth_cancelled: "Sign-in was cancelled.",
         no_email: "Your provider account has no verified email address.",
+        email_unverified: "Your provider has not verified this email address.",
+        domain_not_allowed: "Your email domain is not allowed to sign in to this workspace.",
+        invalid_state: "Sign-in session expired or was invalid. Please try again.",
         setup_required: "Workspace setup is not complete.",
         oauth_error: "An error occurred during sign-in.",
         unknown_provider: "Unknown SSO provider.",

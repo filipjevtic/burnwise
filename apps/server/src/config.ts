@@ -6,6 +6,16 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || "dev-jwt-secret-change-in-production",
   jwtExpiry: process.env.JWT_EXPIRY || "7d",
   appUrl: process.env.APP_URL || "http://localhost:5173",
+  // Public URL of THIS server, used to build OAuth redirect URIs that must match
+  // what the IdP has registered. Defaults to localhost for dev; set to the public
+  // domain in production (e.g. https://burnwise.example.com).
+  serverPublicUrl: process.env.SERVER_PUBLIC_URL || `http://localhost:${Number(process.env.PORT || "3000")}`,
+  // Comma-separated list of email domains allowed to sign in / auto-provision via
+  // SSO (e.g. "example.com,corp.example.com"). Empty = allow any domain.
+  ssoAllowedDomains: (process.env.SSO_ALLOWED_DOMAINS || "")
+    .split(",")
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean),
   // Key used to encrypt secrets at rest (integration tokens, etc.).
   // Should be a 32-byte value (hex or base64). Falls back to deriving from
   // JWT_SECRET in dev so local setups keep working.
