@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "../context/auth.js";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -83,6 +83,7 @@ export function useProjectData(projectId: string) {
   const [error, setError] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [sprintsRefreshKey, setSprintsRefreshKey] = useState(0);
+  const forecastReqSeq = useRef(0);
 
   // Re-fetch sprints/tickets on demand, e.g. after an issue-tracker sync
   // imports new data so the dashboard updates without a full page reload.
@@ -90,6 +91,7 @@ export function useProjectData(projectId: string) {
 
   useEffect(() => {
     if (!projectId) return;
+    let ignore = false;
     setError(null);
     fetch(`${API_URL}/api/v1/sprints/project/${projectId}`, { headers: authHeader })
       .then(async (res) => {
@@ -97,6 +99,7 @@ export function useProjectData(projectId: string) {
         return res.json();
       })
       .then((data) => {
+        if (ignore) return;
         setSprints(data.sprints || []);
         if (data.sprints?.[0]) {
           setSelectedSprint(data.sprints[0].id);
@@ -105,12 +108,18 @@ export function useProjectData(projectId: string) {
           setSummary(null);
         }
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => {
+        if (!ignore) setError(err.message);
+      });
+    return () => {
+      ignore = true;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, token, sprintsRefreshKey]);
 
   useEffect(() => {
     if (!selectedSprint) return;
+    let ignore = false;
     setSummaryLoading(true);
     setError(null);
     fetch(`${API_URL}/api/v1/sprints/summary/${selectedSprint}`, { headers: authHeader })
@@ -118,14 +127,24 @@ export function useProjectData(projectId: string) {
         if (!res.ok) throw new Error(await res.text());
         return res.json();
       })
-      .then((data) => setSummary(data))
-      .catch((err) => setError(err.message))
-      .finally(() => setSummaryLoading(false));
+      .then((data) => {
+        if (!ignore) setSummary(data);
+      })
+      .catch((err) => {
+        if (!ignore) setError(err.message);
+      })
+      .finally(() => {
+        if (!ignore) setSummaryLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSprint, token]);
 
   const refreshForecast = useCallback(async (target: string) => {
     if (!projectId) return;
+    const seq = ++forecastReqSeq.current;
     setForecastLoading(true);
     setError(null);
     try {
@@ -136,11 +155,11 @@ export function useProjectData(projectId: string) {
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      setForecast(data);
+      if (seq === forecastReqSeq.current) setForecast(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Forecast failed");
+      if (seq === forecastReqSeq.current) setError(err instanceof Error ? err.message : "Forecast failed");
     } finally {
-      setForecastLoading(false);
+      if (seq === forecastReqSeq.current) setForecastLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, token]);

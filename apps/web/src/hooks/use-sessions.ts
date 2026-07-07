@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "../context/auth.js";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -66,11 +66,13 @@ export function useSessions(projectId: string, sprintId: string | null) {
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const reqSeq = useRef(0);
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   const fetchSessions = useCallback(async () => {
     if (!projectId) return;
+    const seq = ++reqSeq.current;
     setLoading(true);
     setError(null);
     try {
@@ -79,11 +81,11 @@ export function useSessions(projectId: string, sprintId: string | null) {
       const res = await fetch(`${API_URL}/api/v1/analytics/sessions?${params}`, { headers: authHeaders });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      setSessions(data.sessions || []);
+      if (seq === reqSeq.current) setSessions(data.sessions || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load sessions");
+      if (seq === reqSeq.current) setError(err instanceof Error ? err.message : "Failed to load sessions");
     } finally {
-      setLoading(false);
+      if (seq === reqSeq.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, sprintId, token]);
@@ -100,12 +102,14 @@ export function useSessionDetail(sessionId: string | null) {
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reqSeq = useRef(0);
 
   useEffect(() => {
     if (!sessionId) {
       setDetail(null);
       return;
     }
+    const seq = ++reqSeq.current;
     const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     setLoading(true);
     setError(null);
@@ -114,9 +118,15 @@ export function useSessionDetail(sessionId: string | null) {
         if (!res.ok) throw new Error(await res.text());
         return res.json();
       })
-      .then((data) => setDetail(data))
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load session"))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (seq === reqSeq.current) setDetail(data);
+      })
+      .catch((err) => {
+        if (seq === reqSeq.current) setError(err instanceof Error ? err.message : "Failed to load session");
+      })
+      .finally(() => {
+        if (seq === reqSeq.current) setLoading(false);
+      });
   }, [sessionId, token]);
 
   return { detail, loading, error };
