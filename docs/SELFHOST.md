@@ -111,7 +111,7 @@ Collectors (proxy, CLI, MCP, IDE) authenticate to the ingest API. There are two 
   ```bash
   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
   ```
-- **`CI_WEBHOOK_SECRET`** — shared secret used to verify inbound CI webhooks (GitHub HMAC, GitLab token, or generic bearer). If unset, webhook verification is skipped and a warning is logged — set it whenever you expose the CI webhook endpoint.
+- **`CI_WEBHOOK_SECRET`** — shared secret used to verify inbound CI webhooks (GitHub HMAC, GitLab token, or generic bearer). In production (`NODE_ENV=production`) the CI webhook endpoint **rejects all requests until this is set** (fail closed), so an unauthenticated caller cannot inject `ci.run` events. Outside production, verification is skipped with a logged warning for local development.
 
 ### Rate limiting
 
