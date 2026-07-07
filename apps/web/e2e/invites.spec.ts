@@ -32,4 +32,32 @@ test.describe("invite flow", () => {
 
     await context.close();
   });
+
+  test("open invite cannot take over an existing account", async ({ request }) => {
+    const API_URL = "http://localhost:3000";
+    // The E2E admin already exists (created in global setup).
+    const token = await getToken();
+    const projects = await listProjects(token);
+    const invite = await createInvite(token, projects[0].id, { role: "member" });
+    const inviteToken = invite.link.split("/invite/").pop();
+
+    // Attempt to accept the open invite with the existing admin's email and a
+    // new password — must be refused, not silently overwrite the account.
+    const res = await request.post(`${API_URL}/api/v1/invites/${inviteToken}/accept`, {
+      data: { email: "e2e@test.com", password: "attacker-controlled-pw" },
+    });
+    expect(res.status()).toBe(409);
+
+    // The admin's original password must still work (was not overwritten).
+    const login = await request.post(`${API_URL}/api/v1/auth/login`, {
+      data: { email: "e2e@test.com", password: "e2epassword" },
+    });
+    expect(login.ok()).toBeTruthy();
+
+    // The attacker's password must NOT work.
+    const attackerLogin = await request.post(`${API_URL}/api/v1/auth/login`, {
+      data: { email: "e2e@test.com", password: "attacker-controlled-pw" },
+    });
+    expect(attackerLogin.status()).toBe(401);
+  });
 });
