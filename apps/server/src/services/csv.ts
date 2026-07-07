@@ -12,7 +12,13 @@ export interface CsvColumn<T> {
 
 export function escapeCsvValue(value: CsvValue): string {
   if (value === null || value === undefined) return "";
-  const str = String(value);
+  let str = String(value);
+  // Formula-injection guard: spreadsheet apps execute cells beginning with
+  // = + - @ (or tab/CR). Export data includes user-controlled ticket titles,
+  // emails, and branch/prompt text, so neutralize by prefixing a single quote.
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
   if (/[",\r\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }
