@@ -20,6 +20,14 @@ export const config = {
   // private IP ranges. Loopback and link-local (cloud metadata) are always
   // blocked. Enable only for self-hosted trackers on an internal network.
   integrationAllowPrivateHosts: process.env.INTEGRATION_ALLOW_PRIVATE_HOSTS === "true",
+  // Browser origins allowed by CORS in production (comma-separated). Empty
+  // defaults to APP_URL. In non-production, any origin is reflected for
+  // convenience. Requests without an Origin header (curl, server-to-server,
+  // collectors) are always allowed since CORS is a browser-only control.
+  corsAllowedOrigins: (process.env.CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
   // Key used to encrypt secrets at rest (integration tokens, etc.).
   // Should be a 32-byte value (hex or base64). Falls back to deriving from
   // JWT_SECRET in dev so local setups keep working.
