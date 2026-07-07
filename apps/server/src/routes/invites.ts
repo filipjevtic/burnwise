@@ -101,6 +101,7 @@ export async function registerInviteRoutes(
           msg === "Invite not found" ? 404
           : msg === "Invite already used" || msg === "Invite has expired" ? 410
           : msg.includes("different email") ? 400
+          : msg.includes("already exists") ? 409
           : 500;
         return reply.status(status).send({ error: msg });
       }
