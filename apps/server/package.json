@@ -17,6 +17,7 @@
   "dependencies": {
     "@burnwise/pricing": "*",
     "@burnwise/schema": "*",
+    "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.0.0",
     "@fastify/rate-limit": "^10.0.0",
     "@prisma/adapter-pg": "^7.8.0",

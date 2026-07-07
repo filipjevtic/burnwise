@@ -1,8 +1,13 @@
 import type { FastifyInstance, FastifyPluginOptions } from "fastify";
+import { randomBytes } from "node:crypto";
+import cookie from "@fastify/cookie";
 import jwt from "jsonwebtoken";
 import { getPrisma } from "../db.js";
 import { config } from "../config.js";
 import type { AuthPayload } from "../middleware/auth.js";
+
+const STATE_COOKIE = "bw_oauth_state";
+const STATE_TTL_SECONDS = 600; // 10 minutes
 
 function signToken(payload: AuthPayload): string {
   return jwt.sign(payload, config.jwtSecret, { expiresIn: config.jwtExpiry } as jwt.SignOptions);
@@ -13,8 +18,15 @@ function callbackUrl(): string {
 }
 
 function serverCallbackUrl(provider: string): string {
-  const serverBase = `http://localhost:${config.port}`;
+  const serverBase = config.serverPublicUrl.replace(/\/$/, "");
   return `${serverBase}/api/v1/auth/oauth/${provider}/callback`;
+}
+
+interface ExtractedUser {
+  id: string;
+  email: string;
+  displayName: string;
+  emailVerified: boolean;
 }
 
 interface OAuthProviderConfig {
@@ -24,7 +36,12 @@ interface OAuthProviderConfig {
   scope: string;
   clientId: string;
   clientSecret: string;
-  extractUser: (profile: Record<string, unknown>) => { id: string; email: string; displayName: string };
+  extractUser: (profile: Record<string, unknown>) => ExtractedUser;
+}
+
+/** OIDC/OAuth providers assert email_verified in different shapes (bool or string). */
+function claimIsTrue(value: unknown): boolean {
+  return value === true || value === "true";
 }
 
 function getProviderConfig(provider: string): OAuthProviderConfig | null {
@@ -38,10 +55,13 @@ function getProviderConfig(provider: string): OAuthProviderConfig | null {
         clientId: config.oauth.github.clientId,
         clientSecret: config.oauth.github.clientSecret,
         extractUser(profile) {
+          // GitHub email verification is resolved from the /user/emails API
+          // (primary + verified) in the callback, which sets __emailVerified.
           return {
             id: String(profile.id),
             email: String(profile.email || ""),
             displayName: String(profile.name || profile.login || ""),
+            emailVerified: claimIsTrue(profile.__emailVerified),
           };
         },
       };
@@ -58,6 +78,7 @@ function getProviderConfig(provider: string): OAuthProviderConfig | null {
             id: String(profile.sub),
             email: String(profile.email || ""),
             displayName: String(profile.name || profile.email || ""),
+            emailVerified: claimIsTrue(profile.email_verified),
           };
         },
       };
@@ -71,10 +92,13 @@ function getProviderConfig(provider: string): OAuthProviderConfig | null {
         clientId: config.oauth.gitlab.clientId,
         clientSecret: config.oauth.gitlab.clientSecret,
         extractUser(profile) {
+          // GitLab requires email confirmation before `confirmed_at` is set,
+          // so a confirmed timestamp means the email is verified.
           return {
             id: String(profile.id),
             email: String(profile.email || ""),
             displayName: String(profile.name || profile.username || ""),
+            emailVerified: Boolean(profile.confirmed_at),
           };
         },
       };
@@ -93,6 +117,7 @@ function getProviderConfig(provider: string): OAuthProviderConfig | null {
             id: String(profile.sub || profile.id || ""),
             email: String(profile.email || ""),
             displayName: String(profile.name || profile.preferred_username || profile.email || ""),
+            emailVerified: claimIsTrue(profile.email_verified),
           };
         },
       };
@@ -100,6 +125,13 @@ function getProviderConfig(provider: string): OAuthProviderConfig | null {
     default:
       return null;
   }
+}
+
+/** True when the email's domain is allowed to sign in (empty allowlist = all). */
+function emailDomainAllowed(email: string): boolean {
+  if (config.ssoAllowedDomains.length === 0) return true;
+  const domain = email.split("@")[1]?.toLowerCase();
+  return !!domain && config.ssoAllowedDomains.includes(domain);
 }
 
 interface OIDCDiscovery {
@@ -111,6 +143,7 @@ interface OIDCDiscovery {
 let oidcEndpoints: OIDCDiscovery | null = null;
 
 async function loadOIDCDiscovery(): Promise<void> {
+  if (oidcEndpoints) return;
   if (!config.oidc.issuerUrl || !config.oidc.clientId) return;
   const issuer = config.oidc.issuerUrl.replace(/\/$/, "");
   try {
@@ -135,10 +168,16 @@ export async function registerOAuthRoutes(
   const prisma = await getPrisma();
   await loadOIDCDiscovery();
 
+  // Signed cookies carry the CSRF state nonce between the init redirect and the
+  // callback, binding the flow to the user's browser.
+  await app.register(cookie, { secret: config.jwtSecret });
+
   app.get<{ Params: { provider: string } }>(
     "/:provider",
     async (request, reply) => {
       const { provider } = request.params;
+      // OIDC discovery may have failed at boot (IdP down); retry lazily.
+      if (provider === "oidc") await loadOIDCDiscovery();
       const providerCfg = getProviderConfig(provider);
 
       if (!providerCfg) {
@@ -148,12 +187,24 @@ export async function registerOAuthRoutes(
         return reply.status(400).send({ error: `SSO provider '${provider}' is not configured` });
       }
 
+      // CSRF: random nonce sent to the IdP as `state` and stored in a signed,
+      // http-only cookie. On callback the two must match.
+      const stateNonce = randomBytes(32).toString("hex");
+      reply.setCookie(STATE_COOKIE, stateNonce, {
+        path: "/api/v1/auth/oauth",
+        httpOnly: true,
+        sameSite: "lax",
+        secure: config.serverPublicUrl.startsWith("https://"),
+        signed: true,
+        maxAge: STATE_TTL_SECONDS,
+      });
+
       const params = new URLSearchParams({
         client_id: providerCfg.clientId,
         redirect_uri: serverCallbackUrl(provider),
         scope: providerCfg.scope,
         response_type: "code",
-        state: provider,
+        state: stateNonce,
       });
 
       return reply.redirect(`${providerCfg.authUrl}?${params.toString()}`);
@@ -164,11 +215,20 @@ export async function registerOAuthRoutes(
     "/:provider/callback",
     async (request, reply) => {
       const { provider } = request.params;
-      const { code, error } = request.query;
+      const { code, error, state } = request.query;
       const frontendCallback = callbackUrl();
 
       if (error || !code) {
         return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(error || "oauth_cancelled")}`);
+      }
+
+      // CSRF: the state returned by the IdP must match the nonce in our signed
+      // cookie. Missing/mismatched state means the flow wasn't started here.
+      const cookieRaw = request.cookies[STATE_COOKIE];
+      const unsigned = cookieRaw ? reply.unsignCookie(cookieRaw) : null;
+      reply.clearCookie(STATE_COOKIE, { path: "/api/v1/auth/oauth" });
+      if (!state || !unsigned?.valid || unsigned.value !== state) {
+        return reply.redirect(`${frontendCallback}?error=invalid_state`);
       }
 
       const providerCfg = getProviderConfig(provider);
@@ -215,7 +275,10 @@ export async function registerOAuthRoutes(
           if (emailsRes.ok) {
             const emails = await emailsRes.json() as Array<{ email: string; primary: boolean; verified: boolean }>;
             const primary = emails.find((e) => e.primary && e.verified);
-            if (primary) profile.email = primary.email;
+            if (primary) {
+              profile.email = primary.email;
+              profile.__emailVerified = true;
+            }
           }
         } else {
           const userRes = await fetch(providerCfg.userUrl, {
@@ -224,10 +287,21 @@ export async function registerOAuthRoutes(
           profile = await userRes.json() as Record<string, unknown>;
         }
 
-        const { id: ssoId, email, displayName } = providerCfg.extractUser(profile);
+        const { id: ssoId, email, displayName, emailVerified } = providerCfg.extractUser(profile);
 
         if (!email) {
           return reply.redirect(`${frontendCallback}?error=no_email`);
+        }
+
+        // Account-linking safety: only link/create by an email the IdP has
+        // verified, otherwise an attacker asserting someone else's address could
+        // hijack an existing account.
+        if (!emailVerified) {
+          return reply.redirect(`${frontendCallback}?error=email_unverified`);
+        }
+
+        if (!emailDomainAllowed(email)) {
+          return reply.redirect(`${frontendCallback}?error=domain_not_allowed`);
         }
 
         const workspace = await prisma.workspace.findFirst({ where: { setupComplete: true } });
