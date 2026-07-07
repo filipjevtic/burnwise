@@ -4,6 +4,46 @@ import { requireAuth, requireAdmin, type AuthPayload } from "../middleware/auth.
 import { requireProjectRole } from "../middleware/rbac.js";
 import { assertSprintInWorkspace } from "../middleware/scope.js";
 
+interface BudgetBody {
+  tokenBudget?: number;
+  costBudget?: number;
+  tokenBudgetAlertThreshold?: number;
+  costBudgetAlertThreshold?: number;
+}
+
+/**
+ * Validate + normalize budget input. Absent fields are omitted (partial update);
+ * `null` clears a field. Returns an error string for invalid values so the route
+ * can respond 400 instead of surfacing a Prisma 500 or storing nonsense.
+ */
+function validateBudget(body: BudgetBody): { data: BudgetBody } | { error: string } {
+  const data: BudgetBody = {};
+
+  const checkNumber = (
+    key: keyof BudgetBody,
+    { integer, min, max }: { integer?: boolean; min: number; max: number }
+  ): string | null => {
+    const value = body[key];
+    if (value === undefined) return null;
+    if (value === null) { data[key] = null as unknown as number; return null; }
+    if (typeof value !== "number" || Number.isNaN(value)) return `${key} must be a number`;
+    if (integer && !Number.isInteger(value)) return `${key} must be an integer`;
+    if (value < min || value > max) return `${key} must be between ${min} and ${max}`;
+    data[key] = value;
+    return null;
+  };
+
+  const errors = [
+    checkNumber("tokenBudget", { integer: true, min: 0, max: Number.MAX_SAFE_INTEGER }),
+    checkNumber("costBudget", { min: 0, max: Number.MAX_SAFE_INTEGER }),
+    checkNumber("tokenBudgetAlertThreshold", { integer: true, min: 0, max: 100 }),
+    checkNumber("costBudgetAlertThreshold", { integer: true, min: 0, max: 100 }),
+  ].filter(Boolean);
+
+  if (errors.length > 0) return { error: errors[0] as string };
+  return { data };
+}
+
 export async function registerProjectRoutes(
   app: FastifyInstance,
   _opts: FastifyPluginOptions
@@ -49,14 +89,11 @@ export async function registerProjectRoutes(
   // bypass).
   app.put<{ Params: { projectId: string }; Body: { tokenBudget?: number; costBudget?: number; tokenBudgetAlertThreshold?: number; costBudgetAlertThreshold?: number } }>("/:projectId", { preHandler: requireAuth }, async (request, reply) => {
     if (!(await requireProjectRole(prisma, request, reply, request.params.projectId, "admin"))) return;
+    const validated = validateBudget(request.body);
+    if ("error" in validated) return reply.status(400).send({ error: validated.error });
     const project = await prisma.project.update({
       where: { id: request.params.projectId },
-      data: {
-        tokenBudget: request.body.tokenBudget,
-        costBudget: request.body.costBudget,
-        tokenBudgetAlertThreshold: request.body.tokenBudgetAlertThreshold,
-        costBudgetAlertThreshold: request.body.costBudgetAlertThreshold,
-      },
+      data: validated.data,
     });
     return project;
   });
@@ -67,14 +104,11 @@ export async function registerProjectRoutes(
     const resolved = await assertSprintInWorkspace(prisma, reply, request.params.sprintId, workspaceId);
     if (!resolved) return;
     if (!(await requireProjectRole(prisma, request, reply, resolved.projectId, "admin"))) return;
+    const validated = validateBudget(request.body);
+    if ("error" in validated) return reply.status(400).send({ error: validated.error });
     const sprint = await prisma.sprint.update({
       where: { id: request.params.sprintId },
-      data: {
-        tokenBudget: request.body.tokenBudget,
-        costBudget: request.body.costBudget,
-        tokenBudgetAlertThreshold: request.body.tokenBudgetAlertThreshold,
-        costBudgetAlertThreshold: request.body.costBudgetAlertThreshold,
-      },
+      data: validated.data,
     });
     return sprint;
   });
