@@ -36,7 +36,9 @@ export async function registerTeamRoutes(
       const member = await addTeamMember({ projectId, email, displayName, role });
       return { member };
     } catch (err) {
-      return reply.status(500).send({ error: err instanceof Error ? err.message : "Failed to add member" });
+      const msg = err instanceof Error ? err.message : "Failed to add member";
+      if (msg === "Invalid role") return reply.status(400).send({ error: msg });
+      return reply.status(500).send({ error: msg });
     }
   });
 
@@ -53,7 +55,10 @@ export async function registerTeamRoutes(
       await updateTeamMember(projectId, userId, role);
       return { success: true };
     } catch (err) {
-      return reply.status(500).send({ error: err instanceof Error ? err.message : "Failed to update member" });
+      const msg = err instanceof Error ? err.message : "Failed to update member";
+      if (msg === "Invalid role") return reply.status(400).send({ error: msg });
+      if (msg === "Member not found") return reply.status(404).send({ error: msg });
+      return reply.status(500).send({ error: msg });
     }
   });
 
@@ -64,7 +69,9 @@ export async function registerTeamRoutes(
       await removeTeamMember(projectId, userId);
       return { success: true };
     } catch (err) {
-      return reply.status(500).send({ error: err instanceof Error ? err.message : "Failed to remove member" });
+      const msg = err instanceof Error ? err.message : "Failed to remove member";
+      if (msg === "Member not found") return reply.status(404).send({ error: msg });
+      return reply.status(500).send({ error: msg });
     }
   });
 }
