@@ -40,7 +40,7 @@ export async function listTeamMembers(projectId: string): Promise<TeamMemberWith
 
 export async function addTeamMember(input: AddMemberInput): Promise<TeamMemberWithUser> {
   const prisma = await getPrisma();
-  const role = normalizeRole(input.role);
+  const role = assertValidRole(input.role);
 
   const project = await prisma.project.findUnique({
     where: { id: input.projectId },
@@ -96,9 +96,12 @@ export async function addTeamMember(input: AddMemberInput): Promise<TeamMemberWi
 
 export async function removeTeamMember(projectId: string, userId: string): Promise<void> {
   const prisma = await getPrisma();
-  await prisma.teamMember.deleteMany({
+  const result = await prisma.teamMember.deleteMany({
     where: { projectId, userId },
   });
+  if (result.count === 0) {
+    throw new Error("Member not found");
+  }
 }
 
 export async function updateTeamMember(
@@ -107,16 +110,24 @@ export async function updateTeamMember(
   role: TeamRole
 ): Promise<void> {
   const prisma = await getPrisma();
-  await prisma.teamMember.updateMany({
+  const result = await prisma.teamMember.updateMany({
     where: { projectId, userId },
-    data: { role: normalizeRole(role) },
+    data: { role: assertValidRole(role) },
   });
+  if (result.count === 0) {
+    throw new Error("Member not found");
+  }
 }
 
-function normalizeRole(role: string): TeamRole {
+/**
+ * Validate a role against the allowed set (case-insensitive). Throws
+ * "Invalid role" on an unrecognized value rather than silently downgrading to
+ * member, so callers can surface a 400.
+ */
+function assertValidRole(role: string): TeamRole {
   const normalized = role.toLowerCase() as TeamRole;
   if (!VALID_ROLES.includes(normalized)) {
-    return "member";
+    throw new Error("Invalid role");
   }
   return normalized;
 }
