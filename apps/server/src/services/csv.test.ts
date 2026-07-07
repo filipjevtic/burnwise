@@ -19,6 +19,23 @@ describe("escapeCsvValue", () => {
     assert.strictEqual(escapeCsvValue('say "hi"'), '"say ""hi"""');
     assert.strictEqual(escapeCsvValue("line1\nline2"), '"line1\nline2"');
   });
+
+  it("neutralizes formula-injection payloads with a leading quote", () => {
+    assert.strictEqual(escapeCsvValue("=1+1"), "'=1+1");
+    assert.strictEqual(escapeCsvValue("+cmd"), "'+cmd");
+    assert.strictEqual(escapeCsvValue("-2+3"), "'-2+3");
+    assert.strictEqual(escapeCsvValue("@SUM(A1)"), "'@SUM(A1)");
+  });
+
+  it("quotes a neutralized value that also needs RFC-4180 quoting", () => {
+    // Starts with '=' (gets prefixed) AND contains a comma (gets quoted).
+    assert.strictEqual(escapeCsvValue("=HYPERLINK(x,y)"), "\"'=HYPERLINK(x,y)\"");
+  });
+
+  it("does not alter safe values that merely contain +/-/@ later", () => {
+    assert.strictEqual(escapeCsvValue("a+b"), "a+b");
+    assert.strictEqual(escapeCsvValue("user@example.com"), "user@example.com");
+  });
 });
 
 describe("toCsv", () => {
