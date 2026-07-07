@@ -94,16 +94,22 @@ export async function getSession(
 /**
  * Resolve the ticket id for a session, lazily resolving the stored ticketKey
  * against synced tickets if the FK wasn't set at start time.
+ *
+ * When `expectedProjectId` is provided, the session must belong to that project;
+ * otherwise resolution returns null. This prevents an event from inheriting a
+ * ticket by naming a session id from another project/tenant.
  */
 export async function resolveSessionTicketId(
   prisma: PrismaClient,
-  sessionId: string
+  sessionId: string,
+  expectedProjectId?: string
 ): Promise<string | null> {
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
     select: { ticketId: true, ticketKey: true, projectId: true },
   });
   if (!session) return null;
+  if (expectedProjectId && session.projectId !== expectedProjectId) return null;
   if (session.ticketId) return session.ticketId;
   if (session.ticketKey) {
     return resolveTicketId(prisma, session.projectId, session.ticketKey);

@@ -45,6 +45,29 @@ async function lookupTicketByExternalId(
 }
 
 /**
+ * Verify an internal ticket UUID actually belongs to the event's project.
+ * Without this, a collector could attach events to any ticket in any project
+ * by sending a well-formed UUID. Memoized via the cache.
+ */
+async function verifyTicketInProject(
+  prisma: PrismaClient,
+  projectId: string,
+  ticketId: string,
+  cache?: AssociationCache
+): Promise<string | null> {
+  const key = `${projectId}::id::${ticketId}`;
+  const cached = cache?.tickets.get(key);
+  if (cached !== undefined) return cached;
+  const ticket = await prisma.ticket.findFirst({
+    where: { id: ticketId, projectId },
+    select: { id: true },
+  });
+  const id = ticket?.id ?? null;
+  cache?.tickets.set(key, id);
+  return id;
+}
+
+/**
  * Association rules, in order of confidence:
  * 1. Event already carries a ticketId.
  * 2. Ticket ID appears in the LLM prompt text.
@@ -62,13 +85,13 @@ export async function associateEvent(
     if (ticketId) {
       return { ticketId, method: "explicit", confidence: 1.0 };
     }
-    // If it looks like a UUID, trust it as an internal id.
+    // If it looks like a UUID, accept it as an internal id ONLY after verifying
+    // it belongs to this event's project (prevents cross-project attachment).
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(event.ticketId)) {
-      return {
-        ticketId: event.ticketId,
-        method: "explicit",
-        confidence: 1.0,
-      };
+      const verified = await verifyTicketInProject(prisma, event.projectId, event.ticketId, cache);
+      if (verified) {
+        return { ticketId: verified, method: "explicit", confidence: 1.0 };
+      }
     }
   }
 
@@ -77,10 +100,13 @@ export async function associateEvent(
   // events in it inherit that association.
   if (event.sessionId) {
     const prisma = await getPrisma();
-    const cached = cache?.sessions.get(event.sessionId);
+    const sessionKey = `${event.projectId}::${event.sessionId}`;
+    const cached = cache?.sessions.get(sessionKey);
     const ticketId =
-      cached !== undefined ? cached : await resolveSessionTicketId(prisma, event.sessionId);
-    cache?.sessions.set(event.sessionId, ticketId);
+      cached !== undefined
+        ? cached
+        : await resolveSessionTicketId(prisma, event.sessionId, event.projectId);
+    cache?.sessions.set(sessionKey, ticketId);
     if (ticketId) {
       return { ticketId, method: "session", confidence: 0.95 };
     }
