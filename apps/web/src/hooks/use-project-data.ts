@@ -82,6 +82,11 @@ export function useProjectData(projectId: string) {
 
   const [error, setError] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [sprintsRefreshKey, setSprintsRefreshKey] = useState(0);
+
+  // Re-fetch sprints/tickets on demand, e.g. after an issue-tracker sync
+  // imports new data so the dashboard updates without a full page reload.
+  const refetchSprints = useCallback(() => setSprintsRefreshKey((n) => n + 1), []);
 
   useEffect(() => {
     if (!projectId) return;
@@ -102,7 +107,7 @@ export function useProjectData(projectId: string) {
       })
       .catch((err) => setError(err.message));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, token]);
+  }, [projectId, token, sprintsRefreshKey]);
 
   useEffect(() => {
     if (!selectedSprint) return;
@@ -159,5 +164,6 @@ export function useProjectData(projectId: string) {
     setError,
     syncMessage,
     setSyncMessage,
+    refetchSprints,
   };
 }

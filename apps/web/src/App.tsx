@@ -20,7 +20,7 @@ import { useAlerts } from "./hooks/use-alerts.js";
 import { Alert, AlertTitle, AlertDescription } from "./components/ui/alert.js";
 
 function AppRoutes() {
-  const { user, token, loading, setupRequired } = useAuth();
+  const { user, loading, setupRequired } = useAuth();
   const { projects, loading: projectsLoading, createProject } = useProjects();
   const [projectId, setProjectId] = useState<string>("");
   const [alertRefresh, setAlertRefresh] = useState(0);
@@ -149,11 +149,9 @@ function AppRoutes() {
               projectId={projectId}
               onSync={(message) => {
                 data.setSyncMessage(message);
-                const h: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-                fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3000"}/api/v1/sprints/project/${projectId}`, { headers: h })
-                  .then((res) => res.json())
-                  .then((d) => data.sprints !== d.sprints && d.sprints)
-                  .catch(() => null);
+                // Reload sprints/tickets so newly imported data appears without
+                // a full page reload.
+                data.refetchSprints();
               }}
             />
           }
