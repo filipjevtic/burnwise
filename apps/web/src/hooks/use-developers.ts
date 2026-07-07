@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "../context/auth.js";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -20,11 +20,13 @@ export function useDevelopers(projectId: string, sprintId: string | null) {
   const [developers, setDevelopers] = useState<DeveloperStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const reqSeq = useRef(0);
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   const fetchDevelopers = useCallback(async () => {
     if (!projectId) return;
+    const seq = ++reqSeq.current;
     setLoading(true);
     setError(null);
     try {
@@ -33,11 +35,11 @@ export function useDevelopers(projectId: string, sprintId: string | null) {
       const res = await fetch(`${API_URL}/api/v1/analytics/developers?${params}`, { headers: authHeaders });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      setDevelopers(data.developers || []);
+      if (seq === reqSeq.current) setDevelopers(data.developers || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load developer analytics");
+      if (seq === reqSeq.current) setError(err instanceof Error ? err.message : "Failed to load developer analytics");
     } finally {
-      setLoading(false);
+      if (seq === reqSeq.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, sprintId, token]);
