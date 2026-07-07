@@ -1,4 +1,5 @@
 import { getPrisma } from "../db.js";
+import { sameOrigin } from "../lib/ssrf.js";
 
 interface GitLabConfig {
   baseUrl: string;
@@ -165,7 +166,11 @@ async function fetchAllPages<T>(url: string, headers: Record<string, string>): P
     results.push(...page);
 
     const linkHeader = response.headers.get("link");
-    nextUrl = extractNextPageUrl(linkHeader);
+    const candidate = extractNextPageUrl(linkHeader);
+    // Pin pagination to the configured host: a malicious/compromised response
+    // could otherwise redirect the next fetch (with our token) to an internal
+    // target via the Link header.
+    nextUrl = candidate && sameOrigin(candidate, url) ? candidate : null;
   }
 
   return results;
