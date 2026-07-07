@@ -11,15 +11,22 @@ import { safeEqual } from "./crypto.js";
  *  - GitLab  : `X-Gitlab-Token: <secret>` (constant-time compare).
  *  - generic : `Authorization: Bearer <secret>` or `X-Burnwise-Webhook-Token`.
  *
- * When `CI_WEBHOOK_SECRET` is not configured, verification is skipped and this
- * returns `{ ok: true, skipped: true }` so existing self-host deployments keep
- * working (a warning should be logged by the caller).
+ * When `CI_WEBHOOK_SECRET` is not configured:
+ *  - in production the webhook is rejected (fail closed) so an unauthenticated
+ *    caller cannot inject `ci.run` events;
+ *  - outside production verification is skipped with `{ ok: true, skipped: true }`
+ *    so local/dev self-host keeps working (the caller logs a warning).
  */
 export function verifyCiWebhook(
   request: FastifyRequest & { rawBody?: string }
 ): { ok: boolean; skipped: boolean; reason?: string } {
   const secret = config.ciWebhookSecret;
-  if (!secret) return { ok: true, skipped: true };
+  if (!secret) {
+    if (config.nodeEnv === "production") {
+      return { ok: false, skipped: false, reason: "CI webhook secret not configured" };
+    }
+    return { ok: true, skipped: true };
+  }
 
   const headers = request.headers;
 
