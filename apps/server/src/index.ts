@@ -38,7 +38,16 @@ app.addContentTypeParser(
   }
 );
 
-await app.register(cors, { origin: true, methods: ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"] });
+// In production, restrict CORS to an explicit allow-list (defaults to the
+// dashboard APP_URL); in dev, reflect any origin for convenience. Non-browser
+// callers send no Origin header and are unaffected.
+const corsOrigin =
+  config.nodeEnv === "production"
+    ? config.corsAllowedOrigins.length > 0
+      ? config.corsAllowedOrigins
+      : [config.appUrl]
+    : true;
+await app.register(cors, { origin: corsOrigin, methods: ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"] });
 
 // Global per-IP rate limit. Routes can tighten/loosen this via their
 // `config.rateLimit` option (see auth and events). Health checks are exempt so
