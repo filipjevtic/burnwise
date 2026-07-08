@@ -5,6 +5,7 @@ import { Button } from "../components/ui/button.js";
 import { Input } from "../components/ui/input.js";
 import { Label } from "../components/ui/label.js";
 import { Badge } from "../components/ui/badge.js";
+import { PageHeader, ErrorNote } from "../components/ui/page.js";
 import { useAuth } from "../context/auth.js";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -135,16 +136,9 @@ export function IntegrationsPage({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Integrations</h1>
-        <p className="text-sm text-muted-foreground">Connect issue trackers to import tickets and sprints.</p>
-      </div>
+      <PageHeader title="Integrations" description="Connect issue trackers to import tickets and sprints." />
 
-      {error && (
-        <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">
-          Error: {error}
-        </div>
-      )}
+      {error && <ErrorNote>Error: {error}</ErrorNote>}
 
       <div className="space-y-4">
         {integrations.map((integration) => {
@@ -173,7 +167,7 @@ export function IntegrationsPage({
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <CardTitle className="text-lg">{integration.name}</CardTitle>
-                    <Badge variant={integration.status === "ready" ? "default" : "secondary"}>
+                    <Badge variant={integration.status === "ready" ? "success" : "secondary"}>
                       {integration.status === "ready" ? "Ready" : "Soon"}
                     </Badge>
                   </div>

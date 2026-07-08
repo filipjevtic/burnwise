@@ -2,109 +2,219 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ---------------------------------------------------------------------------
+   Theme: map Tailwind color/font/radius utilities onto the semantic CSS vars
+   defined in :root / .dark below. Values are full oklch() colors, so utilities
+   reference the vars directly (no hsl() wrapper). See DESIGN.md.
+--------------------------------------------------------------------------- */
 @theme {
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
 
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent-strong: var(--accent-strong);
 
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
 
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
 
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
 
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
 
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
+  /* shadcn "accent" = a subtle neutral hover surface (NOT the brand accent,
+     which is --primary). Kept neutral so ghost/outline hovers stay quiet. */
+  --color-accent: var(--accent-surface);
+  --color-accent-foreground: var(--accent-surface-foreground);
 
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
 
   --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-sm: calc(var(--radius) - 0.25rem);
+
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', 'Menlo',
+    'Consolas', monospace;
+
+  --default-transition-duration: var(--duration);
+  --default-transition-timing-function: var(--ease-out);
 }
 
-/*
-  The default border color has changed to `currentcolor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
-
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
-@layer base {
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
-  }
-}
-
+/* ---------------------------------------------------------------------------
+   Semantic tokens. Dark-first design; :root carries the light values and .dark
+   overrides. Neutrals carry a small cool chroma (hue 265) to cohere with the
+   steel-blue brick in the Burnwise mark.
+--------------------------------------------------------------------------- */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* light theme */
+    --background: oklch(0.985 0.002 265);
+    --foreground: oklch(0.21 0.012 265);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.21 0.012 265);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.21 0.012 265);
+
+    --primary: oklch(0.66 0.185 45);
+    --primary-foreground: oklch(0.2 0.03 45);
+    --accent-strong: oklch(0.52 0.19 42);
+
+    --secondary: oklch(0.965 0.003 265);
+    --secondary-foreground: oklch(0.24 0.012 265);
+
+    --muted: oklch(0.965 0.003 265);
+    --muted-foreground: oklch(0.455 0.015 265);
+
+    --accent-surface: oklch(0.955 0.004 265);
+    --accent-surface-foreground: oklch(0.24 0.012 265);
+
+    --destructive: oklch(0.58 0.22 27);
+    --destructive-foreground: oklch(0.99 0 0);
+    --success: oklch(0.55 0.14 155);
+    --success-foreground: oklch(0.99 0 0);
+    --warning: oklch(0.66 0.14 70);
+    --warning-foreground: oklch(0.2 0.03 70);
+    --info: oklch(0.55 0.15 245);
+    --info-foreground: oklch(0.99 0 0);
+
+    --border: oklch(0.915 0.004 265);
+    --input: oklch(0.87 0.006 265);
+    --ring: oklch(0.66 0.185 45);
     --radius: 0.5rem;
+
+    /* motion */
+    --duration-fast: 120ms;
+    --duration: 180ms;
+    --duration-slow: 240ms;
+    --ease-out: cubic-bezier(0.2, 0, 0, 1);
+
+    /* z-index scale */
+    --z-header: 10;
+    --z-dropdown: 40;
+    --z-overlay: 50;
+    --z-toast: 60;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --background: oklch(0.16 0.006 265);
+    --foreground: oklch(0.97 0.004 265);
+    --card: oklch(0.196 0.007 265);
+    --card-foreground: oklch(0.97 0.004 265);
+    --popover: oklch(0.235 0.008 265);
+    --popover-foreground: oklch(0.97 0.004 265);
+
+    --primary: oklch(0.7 0.175 47);
+    --primary-foreground: oklch(0.2 0.03 45);
+    --accent-strong: oklch(0.8 0.15 52);
+
+    --secondary: oklch(0.235 0.008 265);
+    --secondary-foreground: oklch(0.97 0.004 265);
+
+    --muted: oklch(0.24 0.008 265);
+    --muted-foreground: oklch(0.72 0.012 265);
+
+    --accent-surface: oklch(0.255 0.009 265);
+    --accent-surface-foreground: oklch(0.97 0.004 265);
+
+    --destructive: oklch(0.64 0.2 25);
+    --destructive-foreground: oklch(0.99 0 0);
+    --success: oklch(0.72 0.15 155);
+    --success-foreground: oklch(0.18 0.03 155);
+    --warning: oklch(0.8 0.14 78);
+    --warning-foreground: oklch(0.2 0.03 70);
+    --info: oklch(0.7 0.13 240);
+    --info-foreground: oklch(0.16 0.02 240);
+
+    --border: oklch(0.27 0.008 265);
+    --input: oklch(0.32 0.01 265);
+    --ring: oklch(0.7 0.175 47);
   }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: var(--border);
   }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
   body {
-    @apply bg-background text-foreground;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Light ink on dark reads heavier — trim body weight slightly in dark. */
+  .dark body {
+    font-weight: 350;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklch, var(--primary) 28%, transparent);
+  }
+
+  /* Consistent, accent-colored focus ring for anything that doesn't opt into a
+     component-specific ring. Replaces the baseline's invisible gray ring. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Subtle chart load-in: bars/series fade+rise once. Degrades to instant under
+     the prefers-reduced-motion rule below. */
+  @keyframes chart-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .chart-in {
+    animation: chart-in var(--duration-slow) var(--ease-out) both;
+  }
+}
+
+/* Motion is opt-in per component and always degrades. Kill all non-essential
+   animation/transition when the user asks for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

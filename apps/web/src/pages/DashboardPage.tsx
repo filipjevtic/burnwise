@@ -4,6 +4,7 @@ import { Select } from "../components/ui/select.js";
 import { Skeleton } from "../components/ui/skeleton.js";
 import { Button } from "../components/ui/button.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
+import { PageHeader, StatGrid, Stat, EmptyState, ErrorNote } from "../components/ui/page.js";
 import { SprintSummary } from "../hooks/use-project-data.js";
 import { useDevelopers } from "../hooks/use-developers.js";
 import { useTrends, type TrendBucket } from "../hooks/use-trends.js";
@@ -29,59 +30,62 @@ export function DashboardPage({
 }) {
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Track sprint-level AI usage and cost.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <label htmlFor="sprint" className="text-sm font-medium whitespace-nowrap">
-            Sprint
-          </label>
-          <Select
-            id="sprint"
-            value={selectedSprint || ""}
-            onChange={(e) => setSelectedSprint(e.target.value)}
-            className="w-56"
-          >
-            {sprints.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </Select>
-        </div>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description="Track sprint-level AI usage and cost."
+        actions={
+          <>
+            <label htmlFor="sprint" className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+              Sprint
+            </label>
+            <Select
+              id="sprint"
+              value={selectedSprint || ""}
+              onChange={(e) => setSelectedSprint(e.target.value)}
+              className="w-56"
+            >
+              {sprints.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </>
+        }
+      />
 
       {loading && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border lg:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-24" />
+            <Skeleton key={i} className="h-[5.5rem] rounded-none" />
           ))}
         </div>
       )}
 
       {summary && (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-            <StatCard label="Tokens" value={summary.summary.totalTokens.toLocaleString()} icon={BarChart3} />
-            <StatCard label="Cost (USD)" value={`$${summary.summary.totalCost.toFixed(4)}`} icon={Coins} />
-            <StatCard label="Duration (h)" value={(summary.summary.totalDurationSeconds / 3600).toFixed(2)} icon={Clock} />
-            <StatCard label="Tickets" value={summary.summary.ticketCount} icon={Ticket} />
-            <StatCard label="Events" value={summary.summary.eventCount} icon={Activity} />
-          </div>
+          <StatGrid cols={5}>
+            <Stat label="Tokens" value={summary.summary.totalTokens.toLocaleString()} icon={BarChart3} emphasis />
+            <Stat label="Cost" value={`$${summary.summary.totalCost.toFixed(2)}`} icon={Coins} emphasis />
+            <Stat label="Duration" value={`${(summary.summary.totalDurationSeconds / 3600).toFixed(1)}h`} icon={Clock} emphasis />
+            <Stat label="Tickets" value={summary.summary.ticketCount} icon={Ticket} emphasis />
+            <Stat label="Events" value={summary.summary.eventCount} icon={Activity} emphasis />
+          </StatGrid>
 
           <UsageTrends projectId={projectId} sprintId={selectedSprint} />
 
           <Card>
             <CardHeader>
-              <CardTitle>Tickets</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Ticket className="h-4 w-4 text-muted-foreground" />
+                Tickets
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {summary.tickets.length === 0 ? (
-                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                <p className="py-6 text-center text-sm text-muted-foreground">
                   No tickets in this sprint. Sync an issue tracker to populate tickets.
-                </div>
+                </p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -96,7 +100,7 @@ export function DashboardPage({
                     {summary.tickets.map((t) => (
                       <TableRow key={t.ticketId}>
                         <TableCell>
-                          <div className="font-medium">{t.externalId}</div>
+                          <div className="font-mono text-xs font-medium text-foreground">{t.externalId}</div>
                           <div className="text-sm text-muted-foreground">{t.title}</div>
                         </TableCell>
                         <TableCell className="text-right">{t.tokens.toLocaleString()}</TableCell>
@@ -115,13 +119,9 @@ export function DashboardPage({
       )}
 
       {!loading && !summary && (
-        <div className="rounded-lg border border-dashed p-10 text-center">
-          <FolderKanban className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-          <h3 className="text-base font-medium">No sprint data</h3>
-          <p className="mt-1 max-w-xs mx-auto text-sm text-muted-foreground">
-            Select a sprint or sync an issue tracker to see ticket-level usage.
-          </p>
-        </div>
+        <EmptyState icon={FolderKanban} title="No sprint data">
+          Select a sprint or sync an issue tracker to see ticket-level usage.
+        </EmptyState>
       )}
     </div>
   );
@@ -154,7 +154,7 @@ function UsageTrends({ projectId, sprintId }: { projectId: string; sprintId: str
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2">
-          <LineChart className="h-5 w-5 text-muted-foreground" />
+          <LineChart className="h-4 w-4 text-muted-foreground" />
           Usage trends
         </CardTitle>
         <div className="flex items-center gap-2">
@@ -171,7 +171,7 @@ function UsageTrends({ projectId, sprintId }: { projectId: string; sprintId: str
       </CardHeader>
       <CardContent>
         {error ? (
-          <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">Error: {error}</div>
+          <ErrorNote>Error: {error}</ErrorNote>
         ) : loading ? (
           <Skeleton className="h-40" />
         ) : (
@@ -202,25 +202,25 @@ function DeveloperBreakdown({ projectId, sprintId }: { projectId: string; sprint
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-muted-foreground" />
+          <Users className="h-4 w-4 text-muted-foreground" />
           By developer
         </CardTitle>
         <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting || developers.length === 0}>
-          <Download className="mr-2 h-4 w-4" />
+          <Download className="h-4 w-4" />
           {exporting ? "Exporting…" : "Export CSV"}
         </Button>
       </CardHeader>
       <CardContent>
         {error ? (
-          <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">Error: {error}</div>
+          <ErrorNote>Error: {error}</ErrorNote>
         ) : loading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
           </div>
         ) : developers.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+          <p className="py-6 text-center text-sm text-muted-foreground">
             No attributed usage yet. Developers appear here once they use a personal API key.
-          </div>
+          </p>
         ) : (
           <Table>
             <TableHeader>
@@ -250,28 +250,6 @@ function DeveloperBreakdown({ projectId, sprintId }: { projectId: string; sprint
             </TableBody>
           </Table>
         )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: string | number;
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
       </CardContent>
     </Card>
   );

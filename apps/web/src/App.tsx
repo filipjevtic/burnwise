@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/auth.js";
 import { AppLayout } from "./components/layout/AppLayout.js";
+import { useTheme } from "./hooks/use-theme.js";
 import { useProjectData } from "./hooks/use-project-data.js";
 import { useProjects } from "./hooks/use-projects.js";
 import { DashboardPage } from "./pages/DashboardPage.js";
@@ -87,7 +88,7 @@ function AppRoutes() {
         </Alert>
       )}
       {data.syncMessage && (
-        <Alert className="mb-6 border-green-500/50 text-green-700 bg-green-50 dark:bg-green-950/30 dark:text-green-200">
+        <Alert variant="success" className="mb-6">
           <CheckCircle2 className="h-4 w-4" />
           <AlertTitle>Sync complete</AlertTitle>
           <AlertDescription>{data.syncMessage}</AlertDescription>
@@ -175,6 +176,9 @@ function AppRoutes() {
 }
 
 export function App() {
+  // Apply the theme class at the root so unauthenticated pages (login, setup,
+  // invite) honor dark mode too — not just the authenticated AppLayout shell.
+  useTheme();
   return (
     <BrowserRouter>
       <AuthProvider>

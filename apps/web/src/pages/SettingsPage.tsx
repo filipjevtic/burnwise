@@ -4,6 +4,7 @@ import { Button } from "../components/ui/button.js";
 import { Input } from "../components/ui/input.js";
 import { Label } from "../components/ui/label.js";
 import { Select } from "../components/ui/select.js";
+import { PageHeader, ErrorNote } from "../components/ui/page.js";
 import { useTeam, type TeamRole } from "../hooks/use-team.js";
 import { useApiKeys, type CreatedApiKey } from "../hooks/use-api-keys.js";
 import { useAuth } from "../context/auth.js";
@@ -151,13 +152,12 @@ export function SettingsPage({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Manage project budgets and team access.</p>
-      </div>
+      <PageHeader title="Settings" description="Manage project budgets and team access." />
 
-      {error && <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">Error: {error}</div>}
-      {success && <div className="rounded-md bg-green-100 p-4 text-sm text-green-800">{success}</div>}
+      {error && <ErrorNote>Error: {error}</ErrorNote>}
+      {success && (
+        <div className="rounded-md border border-success/25 bg-success/10 p-3 text-sm text-success">{success}</div>
+      )}
 
       <div className="border-b">
         <div className="flex gap-4">
@@ -281,7 +281,7 @@ export function SettingsPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {keysError && <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">Error: {keysError}</div>}
+            {keysError && <ErrorNote>Error: {keysError}</ErrorNote>}
 
             <form onSubmit={handleCreateKey} className="flex flex-wrap items-end gap-2 rounded-md border p-4">
               <div className="grid gap-1.5 flex-1 min-w-[160px]">
@@ -310,8 +310,8 @@ export function SettingsPage({
             </form>
 
             {newKey && (
-              <div className="space-y-2 rounded-md border border-green-300 bg-green-50 p-4">
-                <p className="text-sm font-medium text-green-900">
+              <div className="space-y-2 rounded-md border border-success/30 bg-success/10 p-4">
+                <p className="text-sm font-medium text-success">
                   Copy your new key now — it won&apos;t be shown again.
                 </p>
                 <div className="flex items-center gap-2">
@@ -376,7 +376,7 @@ export function SettingsPage({
             <CardDescription>Manage who can access project {projectId}.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {teamError && <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">Error: {teamError}</div>}
+            {teamError && <ErrorNote>Error: {teamError}</ErrorNote>}
 
             {!isAdmin && (
               <p className="text-sm text-muted-foreground">

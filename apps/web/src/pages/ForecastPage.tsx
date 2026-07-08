@@ -3,6 +3,8 @@ import { Input } from "../components/ui/input.js";
 import { Label } from "../components/ui/label.js";
 import { Badge } from "../components/ui/badge.js";
 import { Skeleton } from "../components/ui/skeleton.js";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
+import { PageHeader, StatGrid, Stat, EmptyState } from "../components/ui/page.js";
 import { Forecast } from "../hooks/use-project-data.js";
 import { useCISummary } from "../hooks/use-ci-summary.js";
 import { useVelocity } from "../hooks/use-velocity.js";
@@ -27,71 +29,63 @@ export function ForecastPage({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Forecast & Capacity</h1>
-        <p className="text-sm text-muted-foreground">
-          Plan the next sprint from historical token, cost, and duration baselines.
-        </p>
-      </div>
+      <PageHeader
+        title="Forecast & Capacity"
+        description="Plan the next sprint from historical token, cost, and duration baselines."
+      />
 
       {loading && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-32" />
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-[5.5rem] rounded-none" />
           ))}
         </div>
       )}
 
       {forecast && (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle>Historical baseline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                <StatCard label="Completed tickets" value={forecast.historical.completedTickets} icon={Target} />
-                <StatCard label="Total story points" value={forecast.historical.totalStoryPoints} icon={TrendingUp} />
-                <StatCard label="Tokens / SP" value={forecast.historical.tokensPerStoryPoint.toFixed(0)} icon={Activity} />
-                <StatCard label="Cost / SP" value={`$${forecast.historical.costPerStoryPoint.toFixed(4)}`} icon={Wallet} />
-                <StatCard label="Duration / SP (h)" value={(forecast.historical.durationSecondsPerStoryPoint / 3600).toFixed(2)} icon={Timer} />
-              </div>
-            </CardContent>
-          </Card>
+          <section className="space-y-3">
+            <h2 className="text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">Historical baseline</h2>
+            <StatGrid cols={5}>
+              <Stat label="Completed tickets" value={forecast.historical.completedTickets} icon={Target} />
+              <Stat label="Total story points" value={forecast.historical.totalStoryPoints} icon={TrendingUp} />
+              <Stat label="Tokens / SP" value={forecast.historical.tokensPerStoryPoint.toFixed(0)} icon={Activity} />
+              <Stat label="Cost / SP" value={`$${forecast.historical.costPerStoryPoint.toFixed(4)}`} icon={Wallet} />
+              <Stat label="Duration / SP" value={`${(forecast.historical.durationSecondsPerStoryPoint / 3600).toFixed(2)}h`} icon={Timer} />
+            </StatGrid>
+          </section>
 
           {forecast.developers.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-muted-foreground" />
+                  <Users className="h-4 w-4 text-muted-foreground" />
                   Team capacity (completed work)
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-muted-foreground">
-                        <th className="py-2 font-medium">Developer</th>
-                        <th className="py-2 text-right font-medium">Tokens</th>
-                        <th className="py-2 text-right font-medium">Cost</th>
-                        <th className="py-2 text-right font-medium">Time (h)</th>
-                        <th className="py-2 text-right font-medium">Tickets</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {forecast.developers.map((d) => (
-                        <tr key={d.userId} className="border-b last:border-0">
-                          <td className="py-2 font-medium">{d.name || d.userId}</td>
-                          <td className="py-2 text-right">{d.tokens.toLocaleString()}</td>
-                          <td className="py-2 text-right">${d.cost.toFixed(4)}</td>
-                          <td className="py-2 text-right">{(d.durationSeconds / 3600).toFixed(2)}</td>
-                          <td className="py-2 text-right">{d.ticketCount}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Developer</TableHead>
+                      <TableHead className="text-right">Tokens</TableHead>
+                      <TableHead className="text-right">Cost</TableHead>
+                      <TableHead className="text-right">Time (h)</TableHead>
+                      <TableHead className="text-right">Tickets</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {forecast.developers.map((d) => (
+                      <TableRow key={d.userId}>
+                        <TableCell className="font-medium">{d.name || d.userId}</TableCell>
+                        <TableCell className="text-right">{d.tokens.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">${d.cost.toFixed(4)}</TableCell>
+                        <TableCell className="text-right">{(d.durationSeconds / 3600).toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{d.ticketCount}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           )}
@@ -99,7 +93,7 @@ export function ForecastPage({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Gauge className="h-5 w-5 text-muted-foreground" />
+                <Gauge className="h-4 w-4 text-muted-foreground" />
                 Velocity-based capacity
               </CardTitle>
             </CardHeader>
@@ -107,21 +101,17 @@ export function ForecastPage({
               {velocityLoading ? (
                 <Skeleton className="h-24" />
               ) : capacity.sampleSize === 0 ? (
-                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                <p className="py-4 text-center text-sm text-muted-foreground">
                   No completed sprints yet. Capacity is recommended from completed story points across past sprints.
-                </div>
+                </p>
               ) : (
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <StatCard label="Recommended points" value={capacity.recommendedPoints} icon={Target} />
-                    <StatCard label="Planning range" value={`${capacity.low}–${capacity.high}`} icon={TrendingUp} />
-                    <StatCard label="Avg / median" value={`${capacity.mean} / ${capacity.median}`} icon={Activity} />
-                    <StatCard
-                      label="Confidence"
-                      value={<Badge variant={confidenceVariant(capacity.confidence)}>{capacity.confidence}</Badge>}
-                      icon={Gauge}
-                    />
-                  </div>
+                  <StatGrid cols={4}>
+                    <Stat label="Recommended points" value={capacity.recommendedPoints} icon={Target} emphasis />
+                    <Stat label="Planning range" value={`${capacity.low}–${capacity.high}`} icon={TrendingUp} />
+                    <Stat label="Avg / median" value={`${capacity.mean} / ${capacity.median}`} icon={Activity} />
+                    <Stat label="Confidence" value={<Badge variant={confidenceVariant(capacity.confidence)}>{capacity.confidence}</Badge>} icon={Gauge} />
+                  </StatGrid>
                   <p className="text-xs text-muted-foreground">
                     Based on {capacity.sampleSize} sprint{capacity.sampleSize === 1 ? "" : "s"} of completed story points (high outliers excluded). Use the median as a realistic commit target.
                   </p>
@@ -135,40 +125,27 @@ export function ForecastPage({
               <CardTitle>Plan next sprint</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="grid w-full max-w-xs items-center gap-1.5">
-                  <Label htmlFor="forecastTarget">Target story points</Label>
-                  <Input
-                    id="forecastTarget"
-                    type="number"
-                    value={forecastTarget}
-                    onChange={(e) => setForecastTarget(e.target.value)}
-                  />
-                </div>
+              <div className="grid w-full max-w-xs items-center gap-1.5">
+                <Label htmlFor="forecastTarget">Target story points</Label>
+                <Input
+                  id="forecastTarget"
+                  type="number"
+                  value={forecastTarget}
+                  onChange={(e) => setForecastTarget(e.target.value)}
+                />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatCard label="Recommended tokens" value={forecast.recommendation.recommendedTokenBudget?.toLocaleString() || "-"} icon={Activity} />
-                <StatCard label="Recommended cost" value={`$${forecast.recommendation.recommendedCostBudget?.toFixed(4) || "-"}`} icon={Wallet} />
-                <StatCard
-                  label="Recommended duration (h)"
-                  value={
-                    forecast.recommendation.recommendedDurationSeconds
-                      ? (forecast.recommendation.recommendedDurationSeconds / 3600).toFixed(2)
-                      : "-"
-                  }
+              <StatGrid cols={4}>
+                <Stat label="Recommended tokens" value={forecast.recommendation.recommendedTokenBudget?.toLocaleString() || "—"} icon={Activity} emphasis />
+                <Stat label="Recommended cost" value={`$${forecast.recommendation.recommendedCostBudget?.toFixed(4) || "—"}`} icon={Wallet} emphasis />
+                <Stat
+                  label="Recommended duration"
+                  value={forecast.recommendation.recommendedDurationSeconds ? `${(forecast.recommendation.recommendedDurationSeconds / 3600).toFixed(2)}h` : "—"}
                   icon={Timer}
+                  emphasis
                 />
-                <StatCard
-                  label="Confidence"
-                  value={
-                    <Badge variant={confidenceVariant(forecast.recommendation.confidence)}>
-                      {forecast.recommendation.confidence}
-                    </Badge>
-                  }
-                  icon={TrendingUp}
-                />
-              </div>
+                <Stat label="Confidence" value={<Badge variant={confidenceVariant(forecast.recommendation.confidence)}>{forecast.recommendation.confidence}</Badge>} icon={TrendingUp} />
+              </StatGrid>
             </CardContent>
           </Card>
 
@@ -177,7 +154,7 @@ export function ForecastPage({
               <CardHeader>
                 <CardTitle>Budget status</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent>
                 <div className="grid gap-6 md:grid-cols-2">
                   <BudgetMeter
                     label="Token usage"
@@ -205,20 +182,14 @@ export function ForecastPage({
               {ciLoading ? (
                 <Skeleton className="h-12" />
               ) : ciSummary ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  <StatCard label="CI runs" value={ciSummary.runCount} icon={Cpu} />
-                  <StatCard label="CI cost" value={`$${ciSummary.totalCost.toFixed(4)}`} icon={Wallet} />
-                  <StatCard label="CI duration (h)" value={(ciSummary.totalDurationSeconds / 3600).toFixed(2)} icon={Timer} />
-                  <StatCard
-                    label="Cost / run"
-                    value={ciSummary.runCount > 0 ? `$${(ciSummary.totalCost / ciSummary.runCount).toFixed(4)}` : "-"}
-                    icon={Wallet}
-                  />
-                </div>
+                <StatGrid cols={4}>
+                  <Stat label="CI runs" value={ciSummary.runCount} icon={Cpu} />
+                  <Stat label="CI cost" value={`$${ciSummary.totalCost.toFixed(4)}`} icon={Wallet} />
+                  <Stat label="CI duration" value={`${(ciSummary.totalDurationSeconds / 3600).toFixed(2)}h`} icon={Timer} />
+                  <Stat label="Cost / run" value={ciSummary.runCount > 0 ? `$${(ciSummary.totalCost / ciSummary.runCount).toFixed(4)}` : "—"} icon={Wallet} />
+                </StatGrid>
               ) : (
-                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No CI data available.
-                </div>
+                <p className="py-4 text-center text-sm text-muted-foreground">No CI data available.</p>
               )}
             </CardContent>
           </Card>
@@ -226,13 +197,9 @@ export function ForecastPage({
       )}
 
       {!loading && !forecast && (
-        <div className="rounded-lg border border-dashed p-10 text-center">
-          <TrendingUp className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-          <h3 className="text-base font-medium">No forecast data</h3>
-          <p className="mt-1 max-w-xs mx-auto text-sm text-muted-foreground">
-            Select a project with completed sprints to generate a forecast.
-          </p>
-        </div>
+        <EmptyState icon={TrendingUp} title="No forecast data">
+          Select a project with completed sprints to generate a forecast.
+        </EmptyState>
       )}
     </div>
   );
@@ -241,34 +208,12 @@ export function ForecastPage({
 function confidenceVariant(confidence: "low" | "medium" | "high") {
   switch (confidence) {
     case "high":
-      return "default";
+      return "success" as const;
     case "medium":
-      return "secondary";
+      return "info" as const;
     case "low":
-      return "outline";
+      return "secondary" as const;
   }
-}
-
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: React.ReactNode;
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-      </CardContent>
-    </Card>
-  );
 }
 
 function BudgetMeter({
@@ -285,20 +230,20 @@ function BudgetMeter({
   prefix?: string;
 }) {
   const percent = Math.min(100, used);
-  const color = percent >= 100 ? "bg-red-500" : percent >= 80 ? "bg-yellow-500" : "bg-green-500";
+  const color = percent >= 100 ? "bg-destructive" : percent >= 80 ? "bg-warning" : "bg-success";
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">{label}</span>
-        <span className={percent >= 100 ? "text-destructive font-medium" : ""}>
+        <span className={"tabular-nums " + (percent >= 100 ? "font-medium text-destructive" : "text-muted-foreground")}>
           {prefix}
           {budget.toLocaleString()} {unit} budget
         </span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-        <div className={"h-full rounded-full transition-all " + color} style={{ width: `${percent}%` }} />
+        <div className={"h-full rounded-full transition-all duration-[var(--duration-slow)] ease-[var(--ease-out)] " + color} style={{ width: `${percent}%` }} />
       </div>
-      <p className="text-xs text-muted-foreground">{percent.toFixed(1)}% used</p>
+      <p className="text-xs text-muted-foreground tabular-nums">{percent.toFixed(1)}% used</p>
     </div>
   );
 }
