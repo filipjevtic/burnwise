@@ -1,16 +1,22 @@
 import * as React from "react";
 import { cn } from "../../lib/utils.js";
 
+// Dense, technical data table: uppercase eyebrow headers, tabular figures so
+// columns of numbers align, hairline row separators, quiet hover.
 function Table({ className, ref, ...props }: React.HTMLAttributes<HTMLTableElement> & { ref?: React.Ref<HTMLTableElement> }) {
   return (
-    <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+    <div className="relative w-full overflow-x-auto">
+      <table
+        ref={ref}
+        className={cn("w-full caption-bottom border-collapse text-sm tabular-nums", className)}
+        {...props}
+      />
     </div>
   );
 }
 
 function TableHeader({ className, ref, ...props }: React.HTMLAttributes<HTMLTableSectionElement> & { ref?: React.Ref<HTMLTableSectionElement> }) {
-  return <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />;
+  return <thead ref={ref} className={cn("[&_tr]:border-b [&_tr]:border-border", className)} {...props} />;
 }
 
 function TableBody({ className, ref, ...props }: React.HTMLAttributes<HTMLTableSectionElement> & { ref?: React.Ref<HTMLTableSectionElement> }) {
@@ -21,7 +27,10 @@ function TableRow({ className, ref, ...props }: React.HTMLAttributes<HTMLTableRo
   return (
     <tr
       ref={ref}
-      className={cn("border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted", className)}
+      className={cn(
+        "border-b border-border/70 transition-colors duration-[var(--duration-fast)] hover:bg-accent/50 data-[state=selected]:bg-accent",
+        className
+      )}
       {...props}
     />
   );
@@ -32,7 +41,7 @@ function TableHead({ className, ref, ...props }: React.ThHTMLAttributes<HTMLTabl
     <th
       ref={ref}
       className={cn(
-        "h-12 px-4 text-left align-middle font-medium text-muted-foreground has-[[role=checkbox]]:pr-0",
+        "h-9 px-3 text-left align-middle text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground has-[[role=checkbox]]:pr-0",
         className
       )}
       {...props}
@@ -41,7 +50,7 @@ function TableHead({ className, ref, ...props }: React.ThHTMLAttributes<HTMLTabl
 }
 
 function TableCell({ className, ref, ...props }: React.TdHTMLAttributes<HTMLTableCellElement> & { ref?: React.Ref<HTMLTableCellElement> }) {
-  return <td ref={ref} className={cn("p-4 align-middle has-[[role=checkbox]]:pr-0", className)} {...props} />;
+  return <td ref={ref} className={cn("px-3 py-2.5 align-middle has-[[role=checkbox]]:pr-0", className)} {...props} />;
 }
 
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell };

@@ -37,6 +37,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Design system guardrail (impeccable detector)
+        run: node .claude/skills/impeccable/scripts/detect.mjs apps/web/src
+
       - name: Typecheck
         run: npm run typecheck --workspaces
 

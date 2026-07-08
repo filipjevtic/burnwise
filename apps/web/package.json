@@ -14,6 +14,8 @@
     "e2e:update-snapshots": "playwright test --grep @visual --update-snapshots"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/postcss": "^4.3.2",
     "class-variance-authority": "^0.7.1",

@@ -25,6 +25,10 @@ export default tseslint.config(
       "**/*.config.ts",
       "**/*.config.js",
       "**/coverage/**",
+      // Vendored tooling (impeccable skill + its bundled/minified scripts and
+      // baseline artifacts) — committed but not our source to lint.
+      ".claude/**",
+      ".impeccable/**",
     ],
   },
   js.configs.recommended,

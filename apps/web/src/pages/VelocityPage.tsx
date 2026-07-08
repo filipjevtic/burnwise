@@ -4,6 +4,7 @@ import { Skeleton } from "../components/ui/skeleton.js";
 import { Badge } from "../components/ui/badge.js";
 import { Select } from "../components/ui/select.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
+import { PageHeader, StatGrid, Stat, EmptyState, ErrorNote } from "../components/ui/page.js";
 import { VelocityChart } from "../components/VelocityChart.js";
 import { TrendChart } from "../components/TrendChart.js";
 import { useVelocity } from "../hooks/use-velocity.js";
@@ -20,7 +21,7 @@ function pct(value: number): string {
  */
 function completionBadge(rate: number, committed: number) {
   if (committed === 0) return <Badge variant="secondary">No commitment</Badge>;
-  if (rate >= 0.9) return <Badge variant="default">On target</Badge>;
+  if (rate >= 0.9) return <Badge variant="success">On target</Badge>;
   if (rate >= 0.7) return <Badge variant="warning">Slight miss</Badge>;
   return <Badge variant="destructive">Under-delivered</Badge>;
 }
@@ -70,14 +71,12 @@ export function VelocityPage({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Velocity</h1>
-        <p className="text-sm text-muted-foreground">
-          Committed vs completed story points per sprint, with a rolling average to calibrate realistic capacity.
-        </p>
-      </div>
+      <PageHeader
+        title="Velocity"
+        description="Committed vs completed story points per sprint, with a rolling average to calibrate realistic capacity."
+      />
 
-      {error && <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">Error: {error}</div>}
+      {error && <ErrorNote>Error: {error}</ErrorNote>}
 
       {loading ? (
         <div className="space-y-4">
@@ -87,32 +86,16 @@ export function VelocityPage({ projectId }: { projectId: string }) {
           <Skeleton className="h-64" />
         </div>
       ) : data.sprints.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center">
-          <Gauge className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-          <h3 className="text-base font-medium">No velocity data yet</h3>
-          <p className="mt-1 max-w-sm mx-auto text-sm text-muted-foreground">
-            Sync sprints with story points from your issue tracker to start measuring velocity.
-          </p>
-        </div>
+        <EmptyState icon={Gauge} title="No velocity data yet">
+          Sync sprints with story points from your issue tracker to start measuring velocity.
+        </EmptyState>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <StatCard
-              title="Avg completed / sprint"
-              value={data.averageCompletedPoints.toLocaleString()}
-              hint="Mean completed story points"
-            />
-            <StatCard
-              title="Estimate accuracy"
-              value={pct(data.averageCompletionRate)}
-              hint="Avg completed ÷ committed"
-            />
-            <StatCard
-              title="Rolling average"
-              value={data.latestRollingAveragePoints.toLocaleString()}
-              hint="Trailing 3-sprint completed points"
-            />
-          </div>
+          <StatGrid cols={3}>
+            <Stat label="Avg completed / sprint" value={data.averageCompletedPoints.toLocaleString()} hint="Mean completed story points" emphasis />
+            <Stat label="Estimate accuracy" value={pct(data.averageCompletionRate)} hint="Avg completed ÷ committed" emphasis />
+            <Stat label="Rolling average" value={data.latestRollingAveragePoints.toLocaleString()} hint="Trailing 3-sprint completed points" emphasis />
+          </StatGrid>
 
           <Card>
             <CardHeader>
@@ -178,7 +161,7 @@ export function VelocityPage({ projectId }: { projectId: string }) {
               ) : (
                 <>
                   <div className="text-sm text-muted-foreground">
-                    Average: <span className="font-medium text-foreground">{metricCfg.format(metricCfg.average(efficiency))}</span> per point
+                    Average: <span className="font-mono font-medium tabular-nums text-foreground">{metricCfg.format(metricCfg.average(efficiency))}</span> per point
                   </div>
                   <TrendChart data={efficiencyPoints} format={metricCfg.format} />
                 </>
@@ -188,19 +171,5 @@ export function VelocityPage({ projectId }: { projectId: string }) {
         </>
       )}
     </div>
-  );
-}
-
-function StatCard({ title, value, hint }: { title: string; value: string; hint: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription>{title}</CardDescription>
-        <CardTitle className="text-3xl">{value}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </CardContent>
-    </Card>
   );
 }
