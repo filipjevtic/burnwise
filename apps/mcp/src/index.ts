@@ -6,10 +6,15 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "./config.js";
 import { emitEvent, startSession } from "./events.js";
+import { computeReportedUsage, isEmptyUsage, ZERO_BASELINE, type Reporting, type Baseline } from "./usage.js";
 import type { Event } from "@burnwise/schema";
 
 let currentTicketId: string | undefined = process.env.ATS_TICKET_ID || undefined;
 let currentSessionId: string | undefined;
+// Running baseline of cumulative usage reported so far, so report_usage can
+// attribute only the delta to the current ticket (#149). Spans ticket switches
+// on purpose — the agent's cumulative counter does not reset per set_ticket.
+let usageBaseline: Baseline = ZERO_BASELINE;
 
 const server = new Server(
   {
@@ -51,7 +56,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "report_usage",
         description:
-          "Report LLM token usage for the current session. Call this after completing a task to track AI cost.",
+          "Report LLM token usage. By default the numbers are treated as CUMULATIVE session totals: only the increase since your last report is attributed to the current ticket, so switching tickets mid-session attributes tokens correctly. Report often (e.g. each turn) and call set_ticket when you switch tasks. Pass reporting:\"incremental\" if you are instead reporting a standalone per-task chunk.",
         inputSchema: {
           type: "object",
           properties: {
@@ -61,19 +66,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             promptTokens: {
               type: "number",
-              description: "Number of input/prompt tokens",
+              description: "Prompt tokens — cumulative session total by default",
             },
             completionTokens: {
               type: "number",
-              description: "Number of output/completion tokens",
+              description: "Completion tokens — cumulative session total by default",
             },
             totalTokens: {
               type: "number",
-              description: "Total tokens (prompt + completion)",
+              description: "Total tokens — cumulative session total by default",
             },
             costUsd: {
               type: "number",
-              description: "Cost in USD if known",
+              description: "Cost in USD if known — cumulative session total by default",
+            },
+            reporting: {
+              type: "string",
+              enum: ["cumulative", "incremental"],
+              description: "cumulative (default): numbers are running session totals; the delta since the last report is attributed. incremental: numbers are a standalone chunk.",
             },
             ticketId: {
               type: "string",
@@ -137,14 +147,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   if (name === "report_usage") {
-    const { model, promptTokens, completionTokens, totalTokens, costUsd, ticketId } = args as {
+    const { model, promptTokens, completionTokens, totalTokens, costUsd, reporting, ticketId } = args as {
       model: string;
       promptTokens: number;
       completionTokens: number;
       totalTokens: number;
       costUsd?: number;
+      reporting?: Reporting;
       ticketId?: string;
     };
+
+    // Attribute only the delta since the last report to the current ticket (#149).
+    const { emit, nextBaseline } = computeReportedUsage(
+      { promptTokens, completionTokens, totalTokens, costUsd },
+      usageBaseline,
+      reporting === "incremental" ? "incremental" : "cumulative"
+    );
+    if (reporting !== "incremental") {
+      usageBaseline = nextBaseline;
+    }
+
+    // Nothing new since the last cumulative report — don't emit a 0-token event.
+    if (isEmptyUsage(emit)) {
+      return {
+        content: [{ type: "text", text: "No new usage since the last report." }],
+      };
+    }
 
     const event: Event = {
       eventId: crypto.randomUUID(),
@@ -162,10 +190,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       payload: {
         provider: "anthropic",
         model,
-        promptTokens,
-        completionTokens,
-        totalTokens,
-        costUsd,
+        promptTokens: emit.promptTokens,
+        completionTokens: emit.completionTokens,
+        totalTokens: emit.totalTokens,
+        costUsd: emit.costUsd,
       },
     };
 
@@ -175,7 +203,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       content: [
         {
           type: "text",
-          text: `Reported ${totalTokens} tokens (${model})${costUsd ? ` · $${costUsd.toFixed(4)}` : ""}`,
+          text: `Attributed ${emit.totalTokens} tokens (${model})${emit.costUsd ? ` · $${emit.costUsd.toFixed(4)}` : ""} to ${ticketId || currentTicketId || "no ticket"}.`,
         },
       ],
     };
