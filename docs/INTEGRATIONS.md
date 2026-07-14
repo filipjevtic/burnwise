@@ -113,21 +113,24 @@ Tools:
 - `get_ticket` — return the current ticket.
 - `emit_session_activity { activityType, durationSeconds, ticketId? }` — record
   agent activity.
-- `report_usage { model, promptTokens, completionTokens, totalTokens, costUsd?, ticketId? }` — 
-  report LLM token usage for the current session. Call after completing a task
-  to track AI cost when the proxy can't intercept calls (e.g. Claude Code,
-  Vertex AI, Bedrock).
+- `report_usage { model, promptTokens, completionTokens, totalTokens, costUsd?, reporting?, ticketId? }` —
+  report LLM token usage to track AI cost when the proxy can't intercept calls
+  (e.g. Claude Code, Vertex AI, Bedrock). Numbers are treated as **cumulative
+  session totals** by default: only the increase since your last report is
+  attributed to the current ticket. Pass `reporting: "incremental"` if you are
+  instead reporting a standalone per-task chunk.
 
-A typical agent flow: call `set_ticket PROJ-123` at task start, work on the
-task, then call `report_usage` with token counts to track AI cost. If routing
-model calls through the proxy, token capture is automatic and `report_usage`
-is not needed.
+A typical agent flow: call `set_ticket PROJ-123` at task start, report usage as
+you work (each call attributes the new tokens since the last one), then
+`set_ticket PROJ-456` when you switch tasks — subsequent usage rolls up to the
+new ticket automatically. If routing model calls through the proxy, token
+capture is automatic and `report_usage` is not needed.
 
-> **Attribution accuracy:** `report_usage` attributes all reported tokens to the
-> current ticket. If you work on multiple tickets in one session, call
-> `set_ticket` and `report_usage` for each task separately — otherwise all
-> tokens are attributed to the last ticket. Per-task incremental reporting is
-> planned (#149).
+> **Multi-task attribution (#149):** because `report_usage` attributes only the
+> **delta** since your last cumulative report, switching tickets mid-session
+> attributes tokens correctly — the tokens used before a `set_ticket` switch stay
+> with the previous ticket. (Previously all reported tokens landed on the last
+> ticket; report often for the sharpest per-ticket breakdown.)
 
 ## VS Code extension (`apps/vscode`)
 
