@@ -2,7 +2,7 @@
   "name": "burnwise",
   "version": "0.2.0",
   "private": true,
-  "description": "Self-hosted open-source platform that ties LLM token usage and traces to tickets for realistic sprint planning.",
+  "description": "Self-hosted, vendor-neutral analytics that attribute AI-assisted effort to tickets, projects, and developers for realistic sprint planning and estimation.",
   "workspaces": [
     "packages/*",
     "apps/*"

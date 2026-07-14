@@ -1,7 +1,7 @@
 {
   "name": "@burnwise/vscode",
   "displayName": "Burnwise",
-  "description": "Track token usage and effort signals tied to tickets.",
+  "description": "Tie AI-assisted effort to your tickets for sprint planning.",
   "version": "0.0.1",
   "private": true,
   "publisher": "burnwise",

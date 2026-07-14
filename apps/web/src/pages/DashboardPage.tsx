@@ -32,7 +32,7 @@ export function DashboardPage({
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
-        description="Track sprint-level AI usage and cost."
+        description="Sprint-level AI-assisted effort, attributed by ticket and developer."
         actions={
           <>
             <label htmlFor="sprint" className="text-sm font-medium text-muted-foreground whitespace-nowrap">

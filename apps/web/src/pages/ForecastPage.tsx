@@ -31,7 +31,7 @@ export function ForecastPage({
     <div className="space-y-6">
       <PageHeader
         title="Forecast & Capacity"
-        description="Plan the next sprint from historical token, cost, and duration baselines."
+        description="Plan the next sprint from historical velocity and AI-effort baselines."
       />
 
       {loading && (

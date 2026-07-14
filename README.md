@@ -10,7 +10,7 @@
 [![CodeQL](https://github.com/filipjevtic/burnwise/actions/workflows/codeql.yml/badge.svg)](https://github.com/filipjevtic/burnwise/actions/workflows/codeql.yml)
 [![Security](https://github.com/filipjevtic/burnwise/actions/workflows/security.yml/badge.svg)](https://github.com/filipjevtic/burnwise/actions/workflows/security.yml)
 
-**The agile observability layer for AI-assisted engineering.** AI coding agents make individual developers faster, but sprint planning is still a guessing game built on pre-AI baselines. Burnwise is a self-hosted, open-source platform that ties LLM tokens, traces, CI cost, and coding time to your Jira / GitHub / GitLab tickets — so you can calibrate story points against *actual* AI-assisted effort and plan sprints with confidence instead of guesswork.
+**Vendor-neutral engineering intelligence for AI-assisted delivery.** AI coding agents make individual developers faster, but sprint planning is still a guessing game built on pre-AI baselines. Burnwise is a self-hosted, open-source analytics layer that attributes AI-assisted effort — tokens, traces, and coding time — across your **tickets, projects, and developers** in Jira / GitHub / GitLab, so PMs and EMs can calibrate estimates and plan sprints on *actual* effort instead of guesswork. It's tool- and vendor-neutral by design: see the whole picture across Claude Code, Cursor, and any OpenAI-compatible agent in one place. Token and cost budgets come along for the ride — but the headline is **delivery, not spend**.
 
 > A 3-point ticket used to mean two days of work. With an AI agent it might mean two hours and 100k tokens. Burnwise connects those two data points.
 
@@ -245,7 +245,7 @@ npm run build --workspaces
 npm run test --workspace=packages/schema
 npm run test --workspace=apps/server
 
-# Run E2E tests (28 tests — auth, sessions, ingest, settings, exports, and more)
+# Run E2E tests (29 tests — auth, sessions, ingest, settings, exports, and more)
 npm run e2e --workspace=apps/web
 
 # Run E2E in UI mode
