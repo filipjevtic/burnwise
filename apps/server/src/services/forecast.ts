@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { rollupEvents, aggregateByDeveloper, type DeveloperRollup } from "./rollup.js";
+import { getProjectUsageTotals } from "./usage.js";
 
 export interface HistoricalStats {
   completedTickets: number;
@@ -81,9 +82,13 @@ export async function generateForecast(
 
   const recommendation = buildRecommendation(historical, input);
 
+  // Budget usage must reflect CURRENT project-wide usage (all events), not the
+  // done-only historical totals — otherwise it disagrees with the alerts banner
+  // and dashboard (issue #10). Shared helper keeps all three in sync.
+  const usage = await getProjectUsageTotals(prisma, projectId);
   const budget = buildBudgetStatus(
     { tokenBudget: project.tokenBudget, costBudget: project.costBudget },
-    historical,
+    usage,
     input
   );
 
@@ -182,9 +187,13 @@ export function buildRecommendation(
   return { confidence };
 }
 
-function buildBudgetStatus(
+/**
+ * Budget status uses CURRENT project usage (all events), passed in as `usage`,
+ * so it matches the alerts service and dashboard. Exported for unit testing.
+ */
+export function buildBudgetStatus(
   project: { tokenBudget: number | null; costBudget: number | null },
-  historical: HistoricalStats,
+  usage: { tokens: number; cost: number },
   input: ForecastInput
 ): ForecastResult["budget"] {
   const tokenBudget = input.targetTokenBudget ?? project.tokenBudget ?? undefined;
@@ -197,7 +206,7 @@ function buildBudgetStatus(
   return {
     tokenBudget,
     costBudget,
-    tokenUsagePercent: tokenBudget !== undefined && historical.totalTokens > 0 ? (historical.totalTokens / tokenBudget) * 100 : undefined,
-    costUsagePercent: costBudget !== undefined && historical.totalCost > 0 ? (historical.totalCost / costBudget) * 100 : undefined,
+    tokenUsagePercent: tokenBudget !== undefined && usage.tokens > 0 ? (usage.tokens / tokenBudget) * 100 : undefined,
+    costUsagePercent: costBudget !== undefined && usage.cost > 0 ? (usage.cost / costBudget) * 100 : undefined,
   };
 }

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { buildRecommendation, computeDeveloperCapacity } from "./forecast.js";
+import { buildRecommendation, computeDeveloperCapacity, buildBudgetStatus } from "./forecast.js";
 
 function makeHistorical(overrides: Partial<Parameters<typeof buildRecommendation>[0]> = {}) {
   return {
@@ -36,6 +36,47 @@ describe("buildRecommendation", () => {
     const historical = makeHistorical({ completedTickets: 2 });
     const recommendation = buildRecommendation(historical, {});
     assert.strictEqual(recommendation.confidence, "low");
+  });
+});
+
+describe("buildBudgetStatus", () => {
+  it("measures usage against CURRENT usage totals, not done-only historical", () => {
+    // Regression for #10: budget usage must reflect all project events. If this
+    // used historical/done-only numbers it would report a different (lower) %.
+    const budget = buildBudgetStatus(
+      { tokenBudget: 1000, costBudget: 10 },
+      { tokens: 800, cost: 4 },
+      {}
+    );
+    assert.strictEqual(budget?.tokenUsagePercent, 80);
+    assert.strictEqual(budget?.costUsagePercent, 40);
+  });
+
+  it("returns null when no project or target budgets are set", () => {
+    assert.strictEqual(
+      buildBudgetStatus({ tokenBudget: null, costBudget: null }, { tokens: 5, cost: 5 }, {}),
+      null
+    );
+  });
+
+  it("prefers input target budgets over project budgets", () => {
+    const budget = buildBudgetStatus(
+      { tokenBudget: 1000, costBudget: null },
+      { tokens: 500, cost: 0 },
+      { targetTokenBudget: 5000 }
+    );
+    assert.strictEqual(budget?.tokenBudget, 5000);
+    assert.strictEqual(budget?.tokenUsagePercent, 10);
+  });
+
+  it("omits a usage percent when usage is zero", () => {
+    const budget = buildBudgetStatus(
+      { tokenBudget: 1000, costBudget: 10 },
+      { tokens: 0, cost: 0 },
+      {}
+    );
+    assert.strictEqual(budget?.tokenUsagePercent, undefined);
+    assert.strictEqual(budget?.costUsagePercent, undefined);
   });
 });
 
