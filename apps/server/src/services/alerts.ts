@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { rollupEvents } from "./rollup.js";
+import { getProjectUsageTotals } from "./usage.js";
 
 export interface Alert {
   type: "token" | "cost";
@@ -22,11 +23,9 @@ export async function getProjectAlerts(
     throw new Error("Project not found");
   }
 
-  const events = await prisma.event.findMany({
-    where: { projectId },
-  });
-
-  const { tokens: totalTokens, cost: totalCost } = rollupEvents(events);
+  // Same current-usage source the forecast uses, so the alerts banner and the
+  // forecast budget meters never disagree (issue #10).
+  const { tokens: totalTokens, cost: totalCost } = await getProjectUsageTotals(prisma, projectId);
 
   const alerts: Alert[] = [];
 
