@@ -9,6 +9,13 @@ providers. It consumes agent telemetry (proxy, IDE, MCP, CLI, CI) and emits a
 planning signal back to the team: **how much AI-assisted effort actually went
 into each ticket, and what that means for the next sprint.**
 
+Burnwise is **cross-tool and vendor-neutral by design** — the goal is one pane
+across every AI coding tool (today: OpenAI-compatible agents via proxy, Claude
+Code via MCP, any command via CLI; on the roadmap: direct Anthropic, Bedrock,
+Vertex, Cursor/Copilot/Windsurf). And it is **planning support, not
+surveillance**: per-developer views serve capacity planning and estimate
+calibration, never a productivity leaderboard — default to team/aggregate framing.
+
 ## Personas
 
 | Persona | Goal |

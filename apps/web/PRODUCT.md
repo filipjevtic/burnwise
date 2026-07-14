@@ -6,10 +6,25 @@
 
 ## What this is
 
-Burnwise is an **AI-dev observability platform** — it tracks token usage, cost,
-velocity, and forecasts across AI coding tools (Claude Code, Cursor, Copilot,
-etc.). The dashboard is a **data tool for engineering leads and developers**, not
-a marketing site. Register: **product**, not brand.
+Burnwise is a **vendor-neutral engineering-intelligence platform** — it attributes
+AI-assisted effort (tokens, traces, coding time) across **tickets, projects, and
+developers**, so PMs and EMs can calibrate estimates and plan sprints on real
+data. Velocity, efficiency, and capacity are the headline; **cost/budgets are a
+supporting feature**, not the pitch. The dashboard is a **data tool for
+engineering leads and developers**, not a marketing site. Register: **product**,
+not brand.
+
+**Cross-tool by design (vision + honest scope).** The goal is one pane across
+every AI coding tool. *Today* that means OpenAI-compatible agents via the proxy
+(Cursor, Aider, etc.), Claude Code via MCP, and any command via the CLI — plus
+Jira/GitHub/GitLab. *On the roadmap:* direct Anthropic, AWS Bedrock, GCP Vertex,
+and Cursor/Copilot/Windsurf telemetry. Don't imply coverage that doesn't ship yet.
+
+**Guardrail — planning, not surveillance.** Per-developer views exist for
+*capacity planning and estimate calibration*, never as a productivity leaderboard.
+Default to aggregate/team framing; individual breakdowns are a means, not the
+headline. This is both an ethics stance and a go-to-market one (eng orgs reject
+surveillance metrics).
 
 ## Register: product
 

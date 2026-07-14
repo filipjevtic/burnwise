@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gcloud logging read *)",
+      "Bash(glab mr view *)",
+      "Bash(glab mr diff *)",
+      "Bash(npm run typecheck *)",
+      "Bash(bq show *)",
+      "Bash(bq ls *)",
+      "Bash(kubectl logs *)",
+      "Bash(npm ls *)",
+      "Bash(gcloud organizations get-iam-policy *)",
+      "Bash(glab ci list *)",
+      "Bash(gcloud projects get-iam-policy *)",
+      "Bash(kubectl get *)",
+      "Bash(npm info *)",
+      "Bash(npm run lint *)",
+      "Bash(kubectl kustomize *)",
+      "Bash(gcloud org-policies describe *)",
+      "Bash(gcloud services list *)",
+      "Bash(glab ci status *)",
+      "Bash(glab mr list *)",
+      "Bash(gsutil ls *)"
+    ]
+  }
+}
