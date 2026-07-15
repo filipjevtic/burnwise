@@ -16,6 +16,11 @@ model Workspace {
   // attribution is hidden across the app — Burnwise reads as planning support,
   // not an individual leaderboard.
   showDeveloperAttribution Boolean @default(true)
+  // Optional external OTel-native trace viewer (Langfuse/Phoenix/…) deep-link
+  // template with a {traceId} placeholder, e.g.
+  // "https://cloud.langfuse.com/project/abc/traces/{traceId}" (#207). When set,
+  // trace spans deep-link to the viewer.
+  traceViewerUrlTemplate String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   projects      Project[]

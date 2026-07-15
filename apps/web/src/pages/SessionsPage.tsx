@@ -9,7 +9,8 @@ import { PageHeader, EmptyState, ErrorNote } from "../components/ui/page.js";
 import { useSessions, useSessionDetail, type SessionListItem, type SessionFeedback, type TraceSummary } from "../hooks/use-sessions.js";
 import { useAuth } from "../context/auth.js";
 import { downloadCsv } from "../lib/download.js";
-import { Activity, X, Download } from "lucide-react";
+import { Activity, X, Download, ExternalLink } from "lucide-react";
+import { useWorkspace } from "../hooks/use-workspace.js";
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
@@ -127,6 +128,7 @@ export function SessionsPage({
 
 function SessionDrawer({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
   const { detail, loading, error } = useSessionDetail(sessionId);
+  const { workspace } = useWorkspace();
 
   return (
     <div className="fixed inset-0 z-[var(--z-overlay)]">
@@ -162,7 +164,9 @@ function SessionDrawer({ sessionId, onClose }: { sessionId: string; onClose: () 
 
               {detail.session.feedback && <FeedbackBlock feedback={detail.session.feedback} />}
 
-              {detail.trace.spanCount > 0 && <TraceBlock trace={detail.trace} />}
+              {detail.trace.spanCount > 0 && (
+                <TraceBlock trace={detail.trace} viewerTemplate={workspace?.traceViewerUrlTemplate ?? null} />
+              )}
 
               <div>
                 <h4 className="mb-2 text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">Event timeline</h4>
@@ -187,12 +191,24 @@ function SessionDrawer({ sessionId, onClose }: { sessionId: string; onClose: () 
   );
 }
 
-function TraceBlock({ trace }: { trace: TraceSummary }) {
+function TraceBlock({ trace, viewerTemplate }: { trace: TraceSummary; viewerTemplate: string | null }) {
   const fmt = (ms: number | null) => (ms === null ? "—" : ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`);
+  const viewerLink = (traceId: string | null) =>
+    viewerTemplate && traceId ? viewerTemplate.replace("{traceId}", encodeURIComponent(traceId)) : null;
+  // A single "view trace" link when all spans share one trace id.
+  const headerLink = trace.traceCount === 1 ? viewerLink(trace.spans.find((s) => s.traceId)?.traceId ?? null) : null;
+
   return (
     <div className="rounded-lg border border-border bg-accent/30 p-3">
       <div className="mb-2 flex items-center justify-between">
-        <h4 className="text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">Trace</h4>
+        <h4 className="flex items-center gap-2 text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">
+          Trace
+          {headerLink && (
+            <a href={headerLink} target="_blank" rel="noopener noreferrer" className="text-accent-foreground hover:underline" title="Open in trace viewer">
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </h4>
         <span className="text-xs text-muted-foreground tabular-nums">
           {trace.spanCount} span{trace.spanCount === 1 ? "" : "s"}
           {trace.errorCount > 0 && <span className="text-warning"> · {trace.errorCount} error{trace.errorCount === 1 ? "" : "s"}</span>}
@@ -200,15 +216,24 @@ function TraceBlock({ trace }: { trace: TraceSummary }) {
         </span>
       </div>
       <ul className="space-y-1">
-        {trace.spans.map((s, i) => (
-          <li key={i} className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-1.5 text-xs">
-            <span className="flex items-center gap-2 truncate">
-              {s.status === "error" && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />}
-              <span className="truncate font-mono">{s.name}</span>
-            </span>
-            <span className="shrink-0 text-muted-foreground tabular-nums">{fmt(s.durationMs)}</span>
-          </li>
-        ))}
+        {trace.spans.map((s, i) => {
+          const link = viewerLink(s.traceId);
+          return (
+            <li key={i} className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-1.5 text-xs">
+              <span className="flex items-center gap-2 truncate">
+                {s.status === "error" && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />}
+                {link ? (
+                  <a href={link} target="_blank" rel="noopener noreferrer" className="truncate font-mono hover:underline">
+                    {s.name}
+                  </a>
+                ) : (
+                  <span className="truncate font-mono">{s.name}</span>
+                )}
+              </span>
+              <span className="shrink-0 text-muted-foreground tabular-nums">{fmt(s.durationMs)}</span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

@@ -53,6 +53,11 @@ export function SettingsPage({
   }, [projectId, token]);
   const { members, loading: teamLoading, error: teamError, addMember, removeMember, updateMember } = useTeam(projectId);
   const { workspace, update: updateWorkspace } = useWorkspace();
+  const [traceViewerUrl, setTraceViewerUrl] = useState("");
+  const [savingViewer, setSavingViewer] = useState(false);
+  useEffect(() => {
+    if (workspace) setTraceViewerUrl(workspace.traceViewerUrlTemplate ?? "");
+  }, [workspace]);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberDisplayName, setMemberDisplayName] = useState("");
   const [memberRole, setMemberRole] = useState<TeamRole>("member");
@@ -401,6 +406,43 @@ export function SettingsPage({
                     }
                   }}
                 />
+              </div>
+            )}
+
+            {workspace && (
+              <div className="space-y-2 rounded-md border border-border p-4">
+                <div className="space-y-0.5">
+                  <div className="text-sm font-medium">Trace viewer deep-link</div>
+                  <p className="max-w-md text-xs text-muted-foreground">
+                    Optional. An https URL to your OTel-native trace viewer (Langfuse, Phoenix, …) with a{" "}
+                    <code className="font-mono">{"{traceId}"}</code> placeholder. When set, trace spans link out to it.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={traceViewerUrl}
+                    disabled={!isAdmin}
+                    placeholder="https://cloud.langfuse.com/project/abc/traces/{traceId}"
+                    onChange={(e) => setTraceViewerUrl(e.target.value)}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!isAdmin || savingViewer || traceViewerUrl === (workspace.traceViewerUrlTemplate ?? "")}
+                    onClick={async () => {
+                      setSavingViewer(true);
+                      try {
+                        await updateWorkspace({ traceViewerUrlTemplate: traceViewerUrl.trim() || null });
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Failed to update trace viewer URL");
+                      } finally {
+                        setSavingViewer(false);
+                      }
+                    }}
+                  >
+                    {savingViewer ? "Saving…" : "Save"}
+                  </Button>
+                </div>
               </div>
             )}
 
