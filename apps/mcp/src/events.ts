@@ -18,6 +18,29 @@ export async function emitEvent(event: Event): Promise<void> {
 }
 
 /**
+ * Attach an agent self-feedback report to a session (#208). Best-effort — the
+ * server sanitizes the payload; returns true on 2xx.
+ */
+export async function reportFeedback(
+  sessionId: string,
+  feedback: Record<string, unknown>
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${config.serverUrl}/api/v1/sessions/${sessionId}/feedback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify(feedback),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Start a server-side session bound to a ticket. Returns the session id, or
  * null if the server is unreachable / the key lacks a project (best-effort).
  */

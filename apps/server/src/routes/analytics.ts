@@ -376,6 +376,7 @@ export async function registerAnalyticsRoutes(
         ticket: session.ticket
           ? { id: session.ticket.id, externalId: session.ticket.externalId, title: session.ticket.title }
           : null,
+        feedback: session.feedback ?? null,
       },
       summary: {
         totalTokens: rollup.tokens,

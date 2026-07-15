@@ -80,6 +80,26 @@ export async function endSession(
   return toInfo(updated);
 }
 
+/** Attach an agent self-feedback report to a session (#208). Returns false if
+ * the session isn't found / not owned by the workspace. */
+export async function saveSessionFeedback(
+  prisma: PrismaClient,
+  sessionId: string,
+  workspaceId: string,
+  feedback: unknown
+): Promise<boolean> {
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    select: { workspaceId: true },
+  });
+  if (!session || session.workspaceId !== workspaceId) return false;
+  await prisma.session.update({
+    where: { id: sessionId },
+    data: { feedback: feedback as object },
+  });
+  return true;
+}
+
 /** Fetch a session scoped to a workspace. */
 export async function getSession(
   prisma: PrismaClient,

@@ -5,7 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "./config.js";
-import { emitEvent, startSession } from "./events.js";
+import { emitEvent, startSession, reportFeedback } from "./events.js";
 import { computeReportedUsage, isEmptyUsage, ZERO_BASELINE, type Reporting, type Baseline } from "./usage.js";
 import type { Event } from "@burnwise/schema";
 
@@ -113,6 +113,34 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ["activityType", "durationSeconds"],
+        },
+      },
+      {
+        name: "report_session_feedback",
+        description:
+          "Report a short self-assessment of the current session: how effective it was, what blocked you, what went well, and a summary of completed items. Call once near the end of a task. Optional — it helps humans plan and run retros; it does not affect token accounting.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            effectiveness: {
+              type: "number",
+              description: "Self-rated effectiveness, 1 (poor) to 5 (excellent)",
+            },
+            wins: {
+              type: "array",
+              items: { type: "string" },
+              description: "What went well / was accomplished",
+            },
+            blockers: {
+              type: "array",
+              items: { type: "string" },
+              description: "Pain points, friction, or things that slowed you down",
+            },
+            summary: {
+              type: "string",
+              description: "Brief summary of completed items for this session",
+            },
+          },
         },
       },
     ],
@@ -244,6 +272,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     return {
       content: [{ type: "text", text: `Emitted ${activityType} activity for ${durationSeconds}s` }],
+    };
+  }
+
+  if (name === "report_session_feedback") {
+    if (!currentSessionId) {
+      return {
+        content: [{ type: "text", text: "No active session — call set_ticket first." }],
+        isError: true,
+      };
+    }
+    const { effectiveness, wins, blockers, summary } = args as {
+      effectiveness?: number;
+      wins?: string[];
+      blockers?: string[];
+      summary?: string;
+    };
+    const ok = await reportFeedback(currentSessionId, { effectiveness, wins, blockers, summary });
+    return {
+      content: [
+        { type: "text", text: ok ? "Session feedback recorded." : "Could not record feedback (no usable fields or server unavailable)." },
+      ],
     };
   }
 

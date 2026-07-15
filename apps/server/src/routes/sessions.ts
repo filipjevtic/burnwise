@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from "fastify";
 import { getPrisma } from "../db.js";
 import { verifyApiKey, type VerifiedApiKey } from "../services/apikey.js";
-import { startSession, endSession, getSession } from "../services/session.js";
+import { startSession, endSession, getSession, saveSessionFeedback } from "../services/session.js";
 import { assertProjectInWorkspace } from "../middleware/scope.js";
+import { normalizeSessionFeedback } from "../lib/feedback.js";
 
 /** Resolve the API-key context from the Authorization header, or null. */
 async function apiKeyFromRequest(
@@ -58,6 +59,18 @@ export async function registerSessionRoutes(
     const session = await endSession(prisma, request.params.id, key.workspaceId);
     if (!session) return reply.status(404).send({ error: "Session not found" });
     return session;
+  });
+
+  // Attach an agent self-feedback report to a session (#208). API-key auth so
+  // the collecting agent can report how the run went alongside usage.
+  app.post<{ Params: { id: string }; Body: unknown }>("/:id/feedback", async (request, reply) => {
+    const key = await apiKeyFromRequest(prisma, request);
+    if (!key) return reply.status(401).send({ error: "Unauthorized" });
+    const feedback = normalizeSessionFeedback(request.body);
+    if (!feedback) return reply.status(400).send({ error: "No usable feedback fields provided" });
+    const ok = await saveSessionFeedback(prisma, request.params.id, key.workspaceId, feedback);
+    if (!ok) return reply.status(404).send({ error: "Session not found" });
+    return { ok: true, feedback };
   });
 
   // Get a session.
