@@ -36,6 +36,29 @@ interface GitLabIssue {
   weight: number | null;
 }
 
+/**
+ * Map a raw GitLab issue state to a canonical ticket status (#9). GitLab only
+ * exposes two issue states — `opened` and `closed` — which, stored raw, are
+ * inconsistent with the rest of the app (Jira stores human-readable statuses,
+ * and completion logic keys on a canonical done vocabulary in velocity.ts).
+ *
+ *   opened -> "in progress"  (active work; GitLab has no distinct "todo" state)
+ *   closed -> "done"         (terminal; recognized by isCompleted)
+ *
+ * The raw state is preserved in ticket metadata for traceability. An unknown
+ * state falls through lowercased rather than being dropped.
+ */
+export function normalizeGitLabState(state: string | null | undefined): string {
+  switch ((state || "").trim().toLowerCase()) {
+    case "closed":
+      return "done";
+    case "opened":
+      return "in progress";
+    default:
+      return (state || "unknown").trim().toLowerCase();
+  }
+}
+
 export async function syncGitLab(config: GitLabConfig): Promise<{ sprints: number; tickets: number }> {
   const prisma = await getPrisma();
   const baseUrl = config.baseUrl.replace(/\/$/, "");
@@ -116,6 +139,12 @@ async function syncIssue(
   issue: GitLabIssue
 ): Promise<void> {
   const labels = issue.labels || [];
+  const status = normalizeGitLabState(issue.state);
+  const metadata = {
+    assignee: issue.assignee?.name || issue.assignee?.username,
+    // Keep the raw GitLab state so the normalization is auditable/reversible.
+    gitlabState: issue.state,
+  };
 
   await prisma.ticket.upsert({
     where: {
@@ -127,14 +156,12 @@ async function syncIssue(
     update: {
       title: issue.title,
       description: issue.description,
-      status: issue.state,
+      status,
       sprintId,
       labels,
       storyPoints: issue.weight,
       externalUrl: issue.web_url,
-      metadata: {
-        assignee: issue.assignee?.name || issue.assignee?.username,
-      },
+      metadata,
     },
     create: {
       projectId,
@@ -142,13 +169,11 @@ async function syncIssue(
       externalId: issue.iid.toString(),
       title: issue.title,
       description: issue.description,
-      status: issue.state,
+      status,
       labels,
       storyPoints: issue.weight,
       externalUrl: issue.web_url,
-      metadata: {
-        assignee: issue.assignee?.name || issue.assignee?.username,
-      },
+      metadata,
     },
   });
 }
