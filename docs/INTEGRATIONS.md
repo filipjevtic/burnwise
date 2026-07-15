@@ -139,6 +139,31 @@ Install the extension and set the active ticket via the command palette
 (time, branch, commit); route the model through the proxy to also capture
 tokens. IDE activity and tokens both attribute to the same ticket.
 
+## OpenTelemetry traces (OTLP/HTTP)
+
+Point any OpenTelemetry exporter that emits GenAI spans (OpenLLMetry/Traceloop,
+the OpenAI/Anthropic OTel instrumentations, Vercel AI SDK telemetry, etc.) at
+Burnwise — no vendor-specific SDK required.
+
+```
+# OTLP/HTTP traces endpoint
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://<your-burnwise>/api/v1/otel/v1/traces
+OTEL_EXPORTER_OTLP_TRACES_HEADERS=Authorization=Bearer bw_sk_...   # project-scoped key
+```
+
+Spans carrying GenAI semantic-convention attributes (`gen_ai.system` /
+`gen_ai.provider.name`, `gen_ai.request.model` / `gen_ai.response.model`,
+`gen_ai.usage.input_tokens` / `output_tokens`) become `llm.response` events and
+flow into the by-tool, by-provider, and cost analytics (source: `otel`); other
+spans are stored as `trace.span` events. Cost is backfilled from the central
+price table when the span doesn't carry one.
+
+A **project-scoped** API key is required (OTLP payloads carry no Burnwise
+identity — the key supplies workspace/project/user). To attribute a trace to a
+ticket or session, set a `burnwise.ticket` (issue key) and/or
+`burnwise.session_id` span attribute; ticket keys found anywhere in span
+attributes are also matched automatically.
+
 ## CI/CD cost webhooks
 
 Send build cost/duration to Burnwise from your pipeline. Configure
