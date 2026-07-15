@@ -8,6 +8,7 @@ import { toCsv, type CsvColumn } from "../services/csv.js";
 import { detectHighOutliers } from "../services/anomaly.js";
 import { computeVelocity } from "../services/velocity.js";
 import { computeEfficiency } from "../services/efficiency.js";
+import { computeEstimateCalibration } from "../services/estimate-calibration.js";
 import { parsePagination, buildPaginationMeta } from "../lib/pagination.js";
 
 /**
@@ -252,6 +253,32 @@ export async function registerAnalyticsRoutes(
         tickets: s.tickets,
       }))
     );
+  });
+
+  // Estimate calibration: completed tickets grouped by story-point value with
+  // the actual AI effort each point value took, how noisy it is, and any
+  // inversions (a smaller estimate that cost more than a larger one). The
+  // PM/EM signal for recalibrating estimates (#195).
+  app.get<{
+    Querystring: { projectId?: string };
+  }>("/calibration", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    const { projectId } = request.query;
+    if (!projectId) {
+      return reply.status(400).send({ error: "projectId is required" });
+    }
+    if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
+
+    const tickets = await prisma.ticket.findMany({
+      where: { projectId, storyPoints: { gt: 0 } },
+      select: {
+        status: true,
+        storyPoints: true,
+        events: { select: { eventType: true, payload: true } },
+      },
+    });
+
+    return computeEstimateCalibration(tickets);
   });
 
   // Session detail with its events and a rollup.

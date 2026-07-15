@@ -9,7 +9,8 @@ import { VelocityChart } from "../components/VelocityChart.js";
 import { TrendChart } from "../components/TrendChart.js";
 import { useVelocity } from "../hooks/use-velocity.js";
 import { useEfficiency, type SprintEfficiency } from "../hooks/use-efficiency.js";
-import { Gauge } from "lucide-react";
+import { useCalibration, type Consistency } from "../hooks/use-calibration.js";
+import { Gauge, Scale, AlertTriangle } from "lucide-react";
 
 function pct(value: number): string {
   return `${Math.round(value * 100)}%`;
@@ -168,8 +169,83 @@ export function VelocityPage({ projectId }: { projectId: string }) {
               )}
             </CardContent>
           </Card>
+
+          <CalibrationCard projectId={projectId} />
         </>
       )}
     </div>
+  );
+}
+
+function consistencyBadge(c: Consistency) {
+  if (c === "consistent") return <Badge variant="success">Consistent</Badge>;
+  if (c === "noisy") return <Badge variant="warning">Noisy</Badge>;
+  return <Badge variant="secondary">Moderate</Badge>;
+}
+
+function CalibrationCard({ projectId }: { projectId: string }) {
+  const { data, loading, error } = useCalibration(projectId);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Scale className="h-4 w-4 text-muted-foreground" />
+          Estimate calibration
+        </CardTitle>
+        <CardDescription>
+          Actual AI-assisted effort by story-point value across completed tickets — recalibrate estimates where effort doesn&apos;t track points.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <ErrorNote>Error: {error}</ErrorNote>
+        ) : loading ? (
+          <Skeleton className="h-40" />
+        ) : data.buckets.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No completed, story-pointed tickets yet. Once tickets with story points are done, their real AI effort is calibrated here.
+          </p>
+        ) : (
+          <>
+            {data.inversions.map((inv, i) => (
+              <div key={i} className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <span className="font-medium tabular-nums">{inv.lowerPoints}-point</span> tickets averaged{" "}
+                  <span className="font-mono tabular-nums">{inv.lowerAvgTokens.toLocaleString()}</span> tokens — more than{" "}
+                  <span className="font-medium tabular-nums">{inv.higherPoints}-point</span> tickets (
+                  <span className="font-mono tabular-nums">{inv.higherAvgTokens.toLocaleString()}</span>). These point values may not be distinguishing effort.
+                </span>
+              </div>
+            ))}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Points</TableHead>
+                  <TableHead className="text-right">Tickets</TableHead>
+                  <TableHead className="text-right">Avg tokens</TableHead>
+                  <TableHead className="text-right">Median</TableHead>
+                  <TableHead className="text-right">Avg cost</TableHead>
+                  <TableHead>Consistency</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.buckets.map((b) => (
+                  <TableRow key={b.storyPoints}>
+                    <TableCell className="font-medium">{b.storyPoints}</TableCell>
+                    <TableCell className="text-right">{b.ticketCount}</TableCell>
+                    <TableCell className="text-right">{b.avgTokens.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{b.medianTokens.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">${b.avgCost.toFixed(4)}</TableCell>
+                    <TableCell>{consistencyBadge(b.consistency)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
