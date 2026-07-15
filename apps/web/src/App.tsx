@@ -6,6 +6,7 @@ import { useTheme } from "./hooks/use-theme.js";
 import { useProjectData } from "./hooks/use-project-data.js";
 import { useProjects } from "./hooks/use-projects.js";
 import { DashboardPage } from "./pages/DashboardPage.js";
+import { PortfolioPage } from "./pages/PortfolioPage.js";
 import { SessionsPage } from "./pages/SessionsPage.js";
 import { VelocityPage } from "./pages/VelocityPage.js";
 import { ForecastPage } from "./pages/ForecastPage.js";
@@ -123,6 +124,7 @@ function AppRoutes() {
             />
           }
         />
+        <Route path="/portfolio" element={<PortfolioPage />} />
         <Route
           path="/sessions"
           element={<SessionsPage projectId={projectId} sprints={data.sprints} />}

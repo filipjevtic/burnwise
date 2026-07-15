@@ -2,7 +2,9 @@ import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyRepl
 import { getPrisma } from "../db.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace } from "../middleware/scope.js";
-import { rollupEvents, aggregateByDeveloper, aggregateBySource } from "../services/rollup.js";
+import { rollupEvents, aggregateByDeveloper, aggregateBySource, rollupBy } from "../services/rollup.js";
+import { computePortfolio, type PortfolioProjectInput } from "../services/portfolio.js";
+import type { SprintInput } from "../services/velocity.js";
 import { bucketEvents, type Bucket } from "../services/trends.js";
 import { toCsv, type CsvColumn } from "../services/csv.js";
 import { detectHighOutliers } from "../services/anomaly.js";
@@ -180,6 +182,64 @@ export async function registerAnalyticsRoutes(
     });
 
     return { sources: aggregateBySource(events) };
+  });
+
+  // Portfolio: velocity + AI-assisted effort across ALL projects in the
+  // workspace, side by side — the EM/leadership view (#196). Workspace-scoped,
+  // no projectId. Aggregate/team-first (no per-developer breakdown).
+  app.get("/portfolio", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    void reply;
+
+    const projects = await prisma.project.findMany({
+      where: { workspaceId },
+      select: { id: true, name: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (projects.length === 0) return computePortfolio([]);
+
+    const projectIds = projects.map((p) => p.id);
+    const [sprints, events] = await Promise.all([
+      prisma.sprint.findMany({
+        where: { projectId: { in: projectIds } },
+        orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          projectId: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+          status: true,
+          tickets: { select: { status: true, storyPoints: true } },
+        },
+      }),
+      prisma.event.findMany({
+        where: { projectId: { in: projectIds } },
+        select: { projectId: true, eventType: true, payload: true },
+      }),
+    ]);
+
+    const sprintsByProject = new Map<string, SprintInput[]>();
+    for (const s of sprints) {
+      const list = sprintsByProject.get(s.projectId) ?? [];
+      list.push({ id: s.id, name: s.name, startDate: s.startDate, endDate: s.endDate, status: s.status, tickets: s.tickets });
+      sprintsByProject.set(s.projectId, list);
+    }
+    const effortByProject = rollupBy(events, (e) => e.projectId);
+
+    const inputs: PortfolioProjectInput[] = projects.map((p) => {
+      const effort = effortByProject.get(p.id);
+      return {
+        id: p.id,
+        name: p.name,
+        sprints: sprintsByProject.get(p.id) ?? [],
+        tokens: effort?.tokens ?? 0,
+        cost: effort?.cost ?? 0,
+        durationSeconds: effort?.durationSeconds ?? 0,
+      };
+    });
+
+    return computePortfolio(inputs);
   });
 
   // Sprint velocity: committed vs completed story points, completion rate, and
