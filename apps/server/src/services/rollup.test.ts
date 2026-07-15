@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { rollupEvents, rollupBy, emptyRollup, aggregateByDeveloper } from "./rollup.js";
+import { rollupEvents, rollupBy, emptyRollup, aggregateByDeveloper, aggregateBySource } from "./rollup.js";
 
 describe("rollupEvents", () => {
   it("returns an empty rollup for no events", () => {
@@ -104,5 +104,36 @@ describe("aggregateByDeveloper", () => {
     ]);
     assert.strictEqual(result[0].sessionCount, 0);
     assert.strictEqual(result[0].ticketCount, 0);
+  });
+});
+
+describe("aggregateBySource", () => {
+  it("rolls up per source with distinct session counts, sorted by tokens", () => {
+    const result = aggregateBySource([
+      { source: "proxy", eventType: "llm.response", payload: { totalTokens: 200, costUsd: 2 }, sessionId: "s1" },
+      { source: "proxy", eventType: "llm.response", payload: { totalTokens: 100 }, sessionId: "s2" },
+      { source: "cli", eventType: "llm.response", payload: { totalTokens: 50 }, sessionId: "s3" },
+      { source: "cli", eventType: "session.activity", payload: { durationSeconds: 90 }, sessionId: "s3" },
+    ]);
+
+    assert.deepStrictEqual(result.map((r) => r.source), ["proxy", "cli"]);
+    const proxy = result.find((r) => r.source === "proxy")!;
+    assert.strictEqual(proxy.tokens, 300);
+    assert.strictEqual(proxy.cost, 2);
+    assert.strictEqual(proxy.sessionCount, 2);
+    const cli = result.find((r) => r.source === "cli")!;
+    assert.strictEqual(cli.tokens, 50);
+    assert.strictEqual(cli.durationSeconds, 90);
+    assert.strictEqual(cli.sessionCount, 1);
+  });
+
+  it("buckets missing source under 'unknown'", () => {
+    const result = aggregateBySource([
+      { source: null, eventType: "llm.response", payload: { totalTokens: 10 } },
+      { eventType: "llm.response", payload: { totalTokens: 5 } },
+    ]);
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].source, "unknown");
+    assert.strictEqual(result[0].tokens, 15);
   });
 });

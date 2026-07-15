@@ -93,6 +93,47 @@ export function aggregateByDeveloper(events: DeveloperEvent[]): DeveloperRollup[
     .sort((a, b) => b.tokens - a.tokens);
 }
 
+export interface SourceEvent extends RollupEvent {
+  source?: string | null;
+  sessionId?: string | null;
+}
+
+export interface SourceRollup extends Rollup {
+  source: string;
+  sessionCount: number;
+}
+
+/**
+ * Aggregate events per collection source (proxy / cli / ide-plugin / ci /
+ * browser), with distinct session counts, sorted by tokens descending. This is
+ * the cross-tool breakdown: which AI tools/collectors drove how much effort.
+ * Events with no source are bucketed under "unknown".
+ */
+export function aggregateBySource(events: SourceEvent[]): SourceRollup[] {
+  const rollups = new Map<string, Rollup>();
+  const sessions = new Map<string, Set<string>>();
+
+  for (const event of events) {
+    const source = event.source || "unknown";
+    let rollup = rollups.get(source);
+    if (!rollup) {
+      rollup = emptyRollup();
+      rollups.set(source, rollup);
+      sessions.set(source, new Set());
+    }
+    accumulate(rollup, event);
+    if (event.sessionId) sessions.get(source)!.add(event.sessionId);
+  }
+
+  return [...rollups.entries()]
+    .map(([source, rollup]) => ({
+      source,
+      ...rollup,
+      sessionCount: sessions.get(source)!.size,
+    }))
+    .sort((a, b) => b.tokens - a.tokens);
+}
+
 function accumulate(acc: Rollup, event: RollupEvent): void {
   const payload = (event.payload ?? {}) as Record<string, unknown>;
   if (event.eventType === "llm.response") {

@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyRepl
 import { getPrisma } from "../db.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace } from "../middleware/scope.js";
-import { rollupEvents, aggregateByDeveloper } from "../services/rollup.js";
+import { rollupEvents, aggregateByDeveloper, aggregateBySource } from "../services/rollup.js";
 import { bucketEvents, type Bucket } from "../services/trends.js";
 import { toCsv, type CsvColumn } from "../services/csv.js";
 import { detectHighOutliers } from "../services/anomaly.js";
@@ -155,6 +155,30 @@ export async function registerAnalyticsRoutes(
     });
 
     return { developers };
+  });
+
+  // Per-tool (collection source) usage rollups for a project (optionally a
+  // sprint) — the cross-tool breakdown: proxy (Cursor/Aider/…), cli (Claude
+  // Code via MCP / CLI wrapper), ide-plugin, ci, browser.
+  app.get<{
+    Querystring: { projectId?: string; sprintId?: string };
+  }>("/by-source", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    const { projectId, sprintId } = request.query;
+    if (!projectId) {
+      return reply.status(400).send({ error: "projectId is required" });
+    }
+    if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
+
+    const events = await prisma.event.findMany({
+      where: {
+        projectId,
+        ...(sprintId ? { ticket: { sprintId } } : {}),
+      },
+      select: { source: true, eventType: true, payload: true, sessionId: true },
+    });
+
+    return { sources: aggregateBySource(events) };
   });
 
   // Sprint velocity: committed vs completed story points, completion rate, and
