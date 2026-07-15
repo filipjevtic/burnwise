@@ -7,6 +7,12 @@ export interface Workspace {
   id: string;
   name: string;
   showDeveloperAttribution: boolean;
+  traceViewerUrlTemplate: string | null;
+}
+
+export interface WorkspacePatch {
+  showDeveloperAttribution?: boolean;
+  traceViewerUrlTemplate?: string | null;
 }
 
 /** Workspace-level settings (capacity-not-surveillance guardrail, #199). */
@@ -34,7 +40,7 @@ export function useWorkspace() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  const update = useCallback(async (patch: { showDeveloperAttribution: boolean }) => {
+  const update = useCallback(async (patch: WorkspacePatch) => {
     const res = await fetch(`${API_URL}/api/v1/workspace`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...authHeaders },
