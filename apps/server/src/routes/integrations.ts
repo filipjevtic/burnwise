@@ -51,9 +51,10 @@ export async function registerIntegrationRoutes(
     return { success: true, provider: "github", ...result };
   });
 
-  app.post<{ Params: { projectId: string }; Body: { baseUrl: string; email: string; token: string; projectKey: string } }>("/jira/:projectId", { preHandler: requireAuth }, async (request, reply) => {
+  app.post<{ Params: { projectId: string }; Body: { baseUrl: string; email: string; token: string; projectKey: string; storyPointsField?: string } }>("/jira/:projectId", { preHandler: requireAuth }, async (request, reply) => {
     const { projectId } = request.params;
     const { baseUrl, email, token, projectKey } = request.body;
+    const storyPointsField = request.body.storyPointsField?.trim() || null;
 
     if (!baseUrl || !email || !token || !projectKey) {
       return reply.status(400).send({ error: "baseUrl, email, token, and projectKey are required" });
@@ -75,6 +76,7 @@ export async function registerIntegrationRoutes(
         baseUrl,
         apiToken: encryptSecret(token),
         projectKey,
+        storyPointsField,
       },
       create: {
         projectId,
@@ -82,6 +84,7 @@ export async function registerIntegrationRoutes(
         baseUrl,
         apiToken: encryptSecret(token),
         projectKey,
+        storyPointsField,
       },
     });
 
@@ -91,6 +94,7 @@ export async function registerIntegrationRoutes(
       token,
       projectKey,
       projectId,
+      storyPointsField,
     });
 
     return { success: true, provider: "jira", ...result };
