@@ -134,6 +134,38 @@ export function aggregateBySource(events: SourceEvent[]): SourceRollup[] {
     .sort((a, b) => b.tokens - a.tokens);
 }
 
+export interface ProviderRollup extends Rollup {
+  provider: string;
+}
+
+/**
+ * Aggregate events per LLM provider (anthropic / openai / bedrock / vertex /
+ * google / …), sorted by tokens descending. The provider is read from the
+ * event payload (`payload.provider`), which the proxy, CLI, and MCP all set on
+ * llm.response events. This is the honest cross-vendor cost breakdown that
+ * provider-aware pricing (#197) makes meaningful. Events with no provider are
+ * bucketed under "unknown".
+ */
+export function aggregateByProvider(events: RollupEvent[]): ProviderRollup[] {
+  const rollups = new Map<string, Rollup>();
+
+  for (const event of events) {
+    const payload = (event.payload ?? {}) as Record<string, unknown>;
+    const provider =
+      typeof payload.provider === "string" && payload.provider.trim() ? payload.provider : "unknown";
+    let rollup = rollups.get(provider);
+    if (!rollup) {
+      rollup = emptyRollup();
+      rollups.set(provider, rollup);
+    }
+    accumulate(rollup, event);
+  }
+
+  return [...rollups.entries()]
+    .map(([provider, rollup]) => ({ provider, ...rollup }))
+    .sort((a, b) => b.tokens - a.tokens);
+}
+
 function accumulate(acc: Rollup, event: RollupEvent): void {
   const payload = (event.payload ?? {}) as Record<string, unknown>;
   if (event.eventType === "llm.response") {

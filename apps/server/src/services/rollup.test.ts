@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { rollupEvents, rollupBy, emptyRollup, aggregateByDeveloper, aggregateBySource } from "./rollup.js";
+import { rollupEvents, rollupBy, emptyRollup, aggregateByDeveloper, aggregateBySource, aggregateByProvider } from "./rollup.js";
 
 describe("rollupEvents", () => {
   it("returns an empty rollup for no events", () => {
@@ -134,6 +134,33 @@ describe("aggregateBySource", () => {
     ]);
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].source, "unknown");
+    assert.strictEqual(result[0].tokens, 15);
+  });
+});
+
+describe("aggregateByProvider", () => {
+  it("rolls up per provider from the payload, sorted by tokens", () => {
+    const result = aggregateByProvider([
+      { eventType: "llm.response", payload: { provider: "anthropic", totalTokens: 200, costUsd: 3 } },
+      { eventType: "llm.response", payload: { provider: "anthropic", totalTokens: 100, costUsd: 1 } },
+      { eventType: "llm.response", payload: { provider: "openai", totalTokens: 50, costUsd: 0.5 } },
+    ]);
+
+    assert.deepStrictEqual(result.map((r) => r.provider), ["anthropic", "openai"]);
+    const anthropic = result.find((r) => r.provider === "anthropic")!;
+    assert.strictEqual(anthropic.tokens, 300);
+    assert.strictEqual(anthropic.cost, 4);
+    const openai = result.find((r) => r.provider === "openai")!;
+    assert.strictEqual(openai.tokens, 50);
+  });
+
+  it("buckets missing/blank provider under 'unknown'", () => {
+    const result = aggregateByProvider([
+      { eventType: "llm.response", payload: { totalTokens: 10 } },
+      { eventType: "llm.response", payload: { provider: "  ", totalTokens: 5 } },
+    ]);
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].provider, "unknown");
     assert.strictEqual(result[0].tokens, 15);
   });
 });

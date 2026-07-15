@@ -19,6 +19,10 @@ describe("estimateCost", () => {
     assertApprox(estimateCost("anthropic", "claude-3-5-sonnet", 1_000_000, 500_000), 10.5);
   });
 
+  it("prices current claude-opus-4-8 at $5/$25", () => {
+    assertApprox(estimateCost("anthropic", "claude-opus-4-8", 1_000_000, 500_000), 17.5);
+  });
+
   it("matches dated/suffixed model names by substring", () => {
     assertApprox(estimateCost("openai", "gpt-4o-2024-08-06", 1_000_000, 0), 5.0);
   });
@@ -32,9 +36,46 @@ describe("estimateCost", () => {
   });
 });
 
-describe("priceForModel", () => {
+describe("priceForModel (provider-aware)", () => {
   it("returns the default price for an unknown model", () => {
     assert.deepEqual(priceForModel("mystery"), DEFAULT_PRICE);
+  });
+
+  it("matches a Bedrock-prefixed Claude id against the shared table", () => {
+    // "anthropic.claude-opus-4-8" should still resolve to the claude-opus-4 entry.
+    assert.deepEqual(priceForModel("anthropic.claude-opus-4-8", "bedrock"), {
+      prompt: 5.0,
+      completion: 25.0,
+    });
+  });
+
+  it("matches a Vertex @-versioned Claude id against the shared table", () => {
+    assert.deepEqual(priceForModel("claude-haiku-4-5@20251001", "vertex"), {
+      prompt: 1.0,
+      completion: 5.0,
+    });
+  });
+
+  it("uses a provider override before the shared table", () => {
+    // Bedrock-native Titan is only in the provider table, not the shared one.
+    assert.deepEqual(priceForModel("amazon.titan-text-express-v1", "bedrock"), {
+      prompt: 0.2,
+      completion: 0.6,
+    });
+  });
+
+  it("is case-insensitive on the provider name", () => {
+    assert.deepEqual(priceForModel("amazon.titan-text-lite", "BEDROCK"), {
+      prompt: 0.15,
+      completion: 0.2,
+    });
+  });
+
+  it("falls through to the shared table for an unknown provider", () => {
+    assert.deepEqual(priceForModel("gpt-4o", "some-unknown-provider"), {
+      prompt: 5.0,
+      completion: 15.0,
+    });
   });
 });
 
@@ -47,6 +88,19 @@ describe("resolveCostUsd", () => {
     assertApprox(
       resolveCostUsd({ model: "gpt-4o", promptTokens: 1_000_000, completionTokens: 0 })!,
       5.0
+    );
+  });
+
+  it("estimates using the provider dimension", () => {
+    // Bedrock Titan is only priced via the provider table.
+    assertApprox(
+      resolveCostUsd({
+        provider: "bedrock",
+        model: "amazon.titan-text-express-v1",
+        promptTokens: 1_000_000,
+        completionTokens: 0,
+      })!,
+      0.2
     );
   });
 
