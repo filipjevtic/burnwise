@@ -6,7 +6,7 @@ import { Badge } from "../components/ui/badge.js";
 import { Button } from "../components/ui/button.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 import { PageHeader, EmptyState, ErrorNote } from "../components/ui/page.js";
-import { useSessions, useSessionDetail, type SessionListItem, type SessionFeedback } from "../hooks/use-sessions.js";
+import { useSessions, useSessionDetail, type SessionListItem, type SessionFeedback, type TraceSummary } from "../hooks/use-sessions.js";
 import { useAuth } from "../context/auth.js";
 import { downloadCsv } from "../lib/download.js";
 import { Activity, X, Download } from "lucide-react";
@@ -162,6 +162,8 @@ function SessionDrawer({ sessionId, onClose }: { sessionId: string; onClose: () 
 
               {detail.session.feedback && <FeedbackBlock feedback={detail.session.feedback} />}
 
+              {detail.trace.spanCount > 0 && <TraceBlock trace={detail.trace} />}
+
               <div>
                 <h4 className="mb-2 text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">Event timeline</h4>
                 {detail.events.length === 0 ? (
@@ -181,6 +183,33 @@ function SessionDrawer({ sessionId, onClose }: { sessionId: string; onClose: () 
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function TraceBlock({ trace }: { trace: TraceSummary }) {
+  const fmt = (ms: number | null) => (ms === null ? "—" : ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`);
+  return (
+    <div className="rounded-lg border border-border bg-accent/30 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <h4 className="text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">Trace</h4>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {trace.spanCount} span{trace.spanCount === 1 ? "" : "s"}
+          {trace.errorCount > 0 && <span className="text-warning"> · {trace.errorCount} error{trace.errorCount === 1 ? "" : "s"}</span>}
+          {" · "}{fmt(trace.totalSpanMs)}
+        </span>
+      </div>
+      <ul className="space-y-1">
+        {trace.spans.map((s, i) => (
+          <li key={i} className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-1.5 text-xs">
+            <span className="flex items-center gap-2 truncate">
+              {s.status === "error" && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />}
+              <span className="truncate font-mono">{s.name}</span>
+            </span>
+            <span className="shrink-0 text-muted-foreground tabular-nums">{fmt(s.durationMs)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { detectHighOutliers } from "../services/anomaly.js";
 import { computeVelocity } from "../services/velocity.js";
 import { computeEfficiency } from "../services/efficiency.js";
 import { computeEstimateCalibration } from "../services/estimate-calibration.js";
+import { computeTraceSummary } from "../services/trace.js";
 import { parsePagination, buildPaginationMeta } from "../lib/pagination.js";
 
 /**
@@ -389,7 +390,7 @@ export async function registerAnalyticsRoutes(
         ticket: { select: { id: true, externalId: true, title: true } },
         events: {
           orderBy: { timestamp: "asc" },
-          select: { id: true, eventType: true, source: true, timestamp: true, payload: true },
+          select: { id: true, eventType: true, source: true, timestamp: true, payload: true, traceId: true, spanId: true },
         },
       },
     });
@@ -399,6 +400,7 @@ export async function registerAnalyticsRoutes(
     }
 
     const rollup = rollupEvents(session.events);
+    const trace = computeTraceSummary(session.events);
     return {
       session: {
         id: session.id,
@@ -422,6 +424,7 @@ export async function registerAnalyticsRoutes(
         totalDurationSeconds: rollup.durationSeconds,
         eventCount: rollup.eventCount,
       },
+      trace,
       events: session.events,
     };
   });

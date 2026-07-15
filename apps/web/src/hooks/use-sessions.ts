@@ -47,6 +47,23 @@ export interface SessionFeedback {
   summary?: string;
 }
 
+export interface TraceSpan {
+  name: string;
+  startTime: string | null;
+  durationMs: number | null;
+  status: string;
+  traceId: string | null;
+  spanId: string | null;
+}
+
+export interface TraceSummary {
+  spanCount: number;
+  errorCount: number;
+  traceCount: number;
+  totalSpanMs: number;
+  spans: TraceSpan[];
+}
+
 export interface SessionDetail {
   session: {
     id: string;
@@ -66,6 +83,7 @@ export interface SessionDetail {
     totalDurationSeconds: number;
     eventCount: number;
   };
+  trace: TraceSummary;
   events: SessionEvent[];
 }
 
