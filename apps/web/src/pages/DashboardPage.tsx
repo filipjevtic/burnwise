@@ -245,7 +245,7 @@ function ToolBreakdown({ projectId, sprintId }: { projectId: string; sprintId: s
 }
 
 function DeveloperBreakdown({ projectId, sprintId }: { projectId: string; sprintId: string | null }) {
-  const { developers, loading, error } = useDevelopers(projectId, sprintId);
+  const { developers, attributionDisabled, loading, error } = useDevelopers(projectId, sprintId);
   const { token } = useAuth();
   const [exporting, setExporting] = useState(false);
 
@@ -267,14 +267,20 @@ function DeveloperBreakdown({ projectId, sprintId }: { projectId: string; sprint
           <Users className="h-4 w-4 text-muted-foreground" />
           By developer
         </CardTitle>
-        <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting || developers.length === 0}>
-          <Download className="h-4 w-4" />
-          {exporting ? "Exporting…" : "Export CSV"}
-        </Button>
+        {!attributionDisabled && (
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting || developers.length === 0}>
+            <Download className="h-4 w-4" />
+            {exporting ? "Exporting…" : "Export CSV"}
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         {error ? (
           <ErrorNote>Error: {error}</ErrorNote>
+        ) : attributionDisabled ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Per-developer attribution is turned off for this workspace. Admins can enable it in Settings → Team.
+          </p>
         ) : loading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
@@ -284,6 +290,10 @@ function DeveloperBreakdown({ projectId, sprintId }: { projectId: string; sprint
             No attributed usage yet. Developers appear here once they use a personal API key.
           </p>
         ) : (
+          <>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Team capacity view — for planning, not individual performance ranking.
+          </p>
           <Table>
             <TableHeader>
               <TableRow>
@@ -311,6 +321,7 @@ function DeveloperBreakdown({ projectId, sprintId }: { projectId: string; sprint
               ))}
             </TableBody>
           </Table>
+          </>
         )}
       </CardContent>
     </Card>
