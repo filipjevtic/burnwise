@@ -9,10 +9,11 @@ import { SprintSummary } from "../hooks/use-project-data.js";
 import { useDevelopers } from "../hooks/use-developers.js";
 import { useTrends, type TrendBucket } from "../hooks/use-trends.js";
 import { useToolBreakdown, toolLabel } from "../hooks/use-tool-breakdown.js";
+import { useProviderBreakdown, providerLabel } from "../hooks/use-provider-breakdown.js";
 import { useAuth } from "../context/auth.js";
 import { downloadCsv } from "../lib/download.js";
 import { TrendChart } from "../components/TrendChart.js";
-import { Coins, Clock, Ticket, Activity, BarChart3, FolderKanban, Users, LineChart, Download, Wrench } from "lucide-react";
+import { Coins, Clock, Ticket, Activity, BarChart3, FolderKanban, Users, LineChart, Download, Wrench, Server } from "lucide-react";
 
 export function DashboardPage({
   projectId,
@@ -76,6 +77,8 @@ export function DashboardPage({
           <UsageTrends projectId={projectId} sprintId={selectedSprint} />
 
           <ToolBreakdown projectId={projectId} sprintId={selectedSprint} />
+
+          <ProviderBreakdown projectId={projectId} sprintId={selectedSprint} />
 
           <Card>
             <CardHeader>
@@ -238,6 +241,68 @@ function ToolBreakdown({ projectId, sprintId }: { projectId: string; sprintId: s
               })}
             </TableBody>
           </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProviderBreakdown({ projectId, sprintId }: { projectId: string; sprintId: string | null }) {
+  const { providers, loading, error } = useProviderBreakdown(projectId, sprintId);
+  const totalTokens = providers.reduce((sum, p) => sum + p.tokens, 0);
+  const totalCost = providers.reduce((sum, p) => sum + p.cost, 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Server className="h-4 w-4 text-muted-foreground" />
+          By provider
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <ErrorNote>Error: {error}</ErrorNote>
+        ) : loading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
+          </div>
+        ) : providers.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No provider-attributed usage yet. Provider-aware cost appears here once LLM events carry a provider (Anthropic, OpenAI, Bedrock, Vertex, …).
+          </p>
+        ) : (
+          <>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Vendor-neutral cost breakdown — priced per (provider, model) so cross-vendor totals are honest.
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Provider</TableHead>
+                <TableHead className="text-right">Tokens</TableHead>
+                <TableHead className="text-right">Share</TableHead>
+                <TableHead className="text-right">Cost</TableHead>
+                <TableHead className="text-right">Cost share</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {providers.map((p) => {
+                const tokenShare = totalTokens > 0 ? (p.tokens / totalTokens) * 100 : 0;
+                const costShare = totalCost > 0 ? (p.cost / totalCost) * 100 : 0;
+                return (
+                  <TableRow key={p.provider}>
+                    <TableCell className="font-medium">{providerLabel(p.provider)}</TableCell>
+                    <TableCell className="text-right">{p.tokens.toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{tokenShare.toFixed(0)}%</TableCell>
+                    <TableCell className="text-right">${p.cost.toFixed(4)}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{costShare.toFixed(0)}%</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          </>
         )}
       </CardContent>
     </Card>

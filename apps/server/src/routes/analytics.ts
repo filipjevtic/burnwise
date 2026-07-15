@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyRepl
 import { getPrisma } from "../db.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace } from "../middleware/scope.js";
-import { rollupEvents, aggregateByDeveloper, aggregateBySource, rollupBy } from "../services/rollup.js";
+import { rollupEvents, aggregateByDeveloper, aggregateBySource, aggregateByProvider, rollupBy } from "../services/rollup.js";
 import { computePortfolio, type PortfolioProjectInput } from "../services/portfolio.js";
 import type { SprintInput } from "../services/velocity.js";
 import { bucketEvents, type Bucket } from "../services/trends.js";
@@ -194,6 +194,32 @@ export async function registerAnalyticsRoutes(
     });
 
     return { sources: aggregateBySource(events) };
+  });
+
+  // Per-provider usage rollups for a project (optionally a sprint) — the honest
+  // cross-vendor cost breakdown (anthropic / openai / bedrock / vertex / …).
+  // The provider lives in the event payload; provider-aware pricing (#197)
+  // makes the cost column meaningful across vendors.
+  app.get<{
+    Querystring: { projectId?: string; sprintId?: string };
+  }>("/by-provider", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    const { projectId, sprintId } = request.query;
+    if (!projectId) {
+      return reply.status(400).send({ error: "projectId is required" });
+    }
+    if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
+
+    const events = await prisma.event.findMany({
+      where: {
+        projectId,
+        eventType: "llm.response",
+        ...(sprintId ? { ticket: { sprintId } } : {}),
+      },
+      select: { eventType: true, payload: true },
+    });
+
+    return { providers: aggregateByProvider(events) };
   });
 
   // Portfolio: velocity + AI-assisted effort across ALL projects in the
