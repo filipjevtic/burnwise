@@ -91,6 +91,9 @@ model IssueTrackerConfig {
   apiToken  String?
   projectKey String?
   repository String?
+  // Jira story-points custom field id (e.g. customfield_10016). Instances vary;
+  // when null the sync falls back to the common default. (#8)
+  storyPointsField String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   project   Project  @relation(fields: [projectId], references: [id])

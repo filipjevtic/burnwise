@@ -49,6 +49,7 @@ export function IntegrationsPage({
   const [jiraEmail, setJiraEmail] = useState("");
   const [jiraToken, setJiraToken] = useState("");
   const [jiraProjectKey, setJiraProjectKey] = useState("");
+  const [jiraStoryPointsField, setJiraStoryPointsField] = useState("");
 
   const [gitlabBaseUrl, setGitlabBaseUrl] = useState("https://gitlab.com");
   const [gitlabToken, setGitlabToken] = useState("");
@@ -97,6 +98,7 @@ export function IntegrationsPage({
           email: jiraEmail,
           token: jiraToken,
           projectKey: jiraProjectKey,
+          storyPointsField: jiraStoryPointsField.trim() || undefined,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -245,6 +247,18 @@ export function IntegrationsPage({
                           onChange={(e) => setJiraProjectKey(e.target.value)}
                           placeholder="PROJ"
                         />
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="jiraStoryPointsField">Story points field ID (optional)</Label>
+                        <Input
+                          id="jiraStoryPointsField"
+                          value={jiraStoryPointsField}
+                          onChange={(e) => setJiraStoryPointsField(e.target.value)}
+                          placeholder="customfield_10016"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Jira instances assign different custom field IDs for story points. Leave blank to use the common default.
+                        </p>
                       </div>
                       <Button
                         type="submit"

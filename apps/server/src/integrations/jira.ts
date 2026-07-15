@@ -6,6 +6,27 @@ interface JiraConfig {
   email: string;
   projectKey: string;
   projectId: string;
+  /** Custom field id holding story points; instances vary. (#8) */
+  storyPointsField?: string | null;
+}
+
+/**
+ * Common default story-points custom field id. Used only when the project's
+ * integration config doesn't specify one — different Jira instances assign
+ * different ids, so this is a best-effort fallback, not a guarantee. (#8)
+ */
+export const DEFAULT_STORY_POINTS_FIELD = "customfield_10016";
+
+/** Resolve a valid custom-field id from config, or the default. (#8) */
+export function resolveStoryPointsField(configured?: string | null): string {
+  const trimmed = configured?.trim();
+  return trimmed ? trimmed : DEFAULT_STORY_POINTS_FIELD;
+}
+
+/** Read a numeric story-points value from an issue's fields, or null. (#8) */
+export function extractStoryPoints(fields: Record<string, unknown>, fieldId: string): number | null {
+  const value = fields[fieldId];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 interface JiraBoard {
@@ -48,6 +69,7 @@ export async function syncJira(config: JiraConfig): Promise<{ sprints: number; t
   const prisma = await getPrisma();
   const baseUrl = config.baseUrl.replace(/\/$/, "");
   const headers = buildHeaders(config.email, config.token);
+  const storyPointsField = resolveStoryPointsField(config.storyPointsField);
 
   // Find a Scrum or Kanban board associated with the project.
   const board = await findBoard(baseUrl, headers, config.projectKey);
@@ -91,15 +113,15 @@ export async function syncJira(config: JiraConfig): Promise<{ sprints: number; t
       const issues = await fetchSprintIssues(baseUrl, headers, sprint.id);
       const sprintId = sprintExternalIdToInternalId[sprint.id.toString()];
       for (const issue of issues) {
-        await syncIssue(prisma, config.projectId, sprintId, issue, baseUrl);
+        await syncIssue(prisma, config.projectId, sprintId, issue, baseUrl, storyPointsField);
       }
     }
   }
 
   // Also sync all project issues that may not be on a sprint board.
-  const allIssues = await searchIssues(baseUrl, headers, config.projectKey);
+  const allIssues = await searchIssues(baseUrl, headers, config.projectKey, storyPointsField);
   for (const issue of allIssues) {
-    await syncIssue(prisma, config.projectId, null, issue, baseUrl);
+    await syncIssue(prisma, config.projectId, null, issue, baseUrl, storyPointsField);
   }
 
   const tickets = await prisma.ticket.count({
@@ -169,7 +191,8 @@ async function fetchSprintIssues(
 async function searchIssues(
   baseUrl: string,
   headers: Record<string, string>,
-  projectKey: string
+  projectKey: string,
+  storyPointsField: string
 ): Promise<JiraIssue[]> {
   const url = `${baseUrl}/rest/api/2/search`;
   const body = {
@@ -182,7 +205,7 @@ async function searchIssues(
       "issuetype",
       "assignee",
       "labels",
-      "customfield_10016",
+      storyPointsField,
     ],
   };
 
@@ -203,10 +226,11 @@ async function syncIssue(
   projectId: string,
   sprintId: string | null,
   issue: JiraIssue,
-  baseUrl: string
+  baseUrl: string,
+  storyPointsField: string
 ): Promise<void> {
   const description = extractDescription(issue.fields.description);
-  const storyPoints = (issue.fields.customfield_10016 as number | undefined) || null;
+  const storyPoints = extractStoryPoints(issue.fields, storyPointsField);
   const labels = issue.fields.labels || [];
   const status = issue.fields.status?.name || "Unknown";
   const issueType = issue.fields.issuetype?.name || "Task";
