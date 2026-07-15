@@ -130,6 +130,31 @@ export async function registerCIRoutes(
     const status = normalizeCiStatus(payload.status);
     const costUsd = payload.costUsd ?? estimateCost(payload.provider, payload.durationSeconds);
 
+    // Idempotency (#6): CI providers retry webhooks on timeouts, so the same run
+    // (provider + runId) can arrive more than once. If we've already recorded
+    // this run for this project, return the existing event instead of creating a
+    // duplicate. Only dedupe when a runId is present — generic payloads without
+    // one can't be reliably distinguished.
+    if (payload.runId) {
+      const existing = await prisma.event.findFirst({
+        where: {
+          projectId,
+          eventType: "ci.run",
+          payload: { path: ["runId"], equals: payload.runId },
+          metadata: { path: ["provider"], equals: payload.provider },
+        },
+        select: { eventId: true, ticketId: true },
+      });
+      if (existing) {
+        return reply.status(200).send({
+          success: true,
+          eventId: existing.eventId,
+          ticketId: existing.ticketId,
+          duplicate: true,
+        });
+      }
+    }
+
     // Ensure a CI system user exists for the workspace so the event userId FK is valid.
     const ciUser = await prisma.user.upsert({
       where: {
