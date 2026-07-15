@@ -62,6 +62,8 @@ export function toolLabel(source: string): { name: string; hint: string } {
       return { name: "CI/CD", hint: "Pipeline runs" };
     case "browser":
       return { name: "Browser", hint: "Web collectors" };
+    case "otel":
+      return { name: "OpenTelemetry", hint: "OTLP GenAI traces" };
     default:
       return { name: source === "unknown" ? "Unattributed" : source, hint: "" };
   }
