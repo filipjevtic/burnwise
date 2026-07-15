@@ -140,7 +140,7 @@ export function useProjectData(projectId: string) {
       ignore = true;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSprint, token]);
+  }, [selectedSprint, token, sprintsRefreshKey]);
 
   const refreshForecast = useCallback(async (target: string) => {
     if (!projectId) return;
@@ -168,6 +168,14 @@ export function useProjectData(projectId: string) {
     refreshForecast(forecastTarget);
   }, [projectId, forecastTarget]);
 
+  // Re-run every project data fetch after a failure (#17): sprints (which
+  // cascades to the sprint summary via sprintsRefreshKey) and the forecast.
+  const retry = useCallback(() => {
+    setError(null);
+    setSprintsRefreshKey((n) => n + 1);
+    refreshForecast(forecastTarget);
+  }, [refreshForecast, forecastTarget]);
+
   return {
     sprints,
     selectedSprint,
@@ -181,6 +189,7 @@ export function useProjectData(projectId: string) {
     refreshForecast,
     error,
     setError,
+    retry,
     syncMessage,
     setSyncMessage,
     refetchSprints,

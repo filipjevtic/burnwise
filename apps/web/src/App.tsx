@@ -17,7 +17,8 @@ import { SetupPage } from "./pages/SetupPage.js";
 import { CreateProjectPage } from "./pages/CreateProjectPage.js";
 import { OAuthCallbackPage } from "./pages/OAuthCallbackPage.js";
 import { InvitePage } from "./pages/InvitePage.js";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
+import { Button } from "./components/ui/button.js";
 import { useAlerts } from "./hooks/use-alerts.js";
 import { Alert, AlertTitle, AlertDescription } from "./components/ui/alert.js";
 
@@ -84,8 +85,14 @@ function AppRoutes() {
       {data.error && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{data.error}</AlertDescription>
+          <AlertTitle>Couldn&apos;t load project data</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-4">
+            <span>{data.error}</span>
+            <Button variant="outline" size="sm" onClick={data.retry} className="shrink-0">
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+          </AlertDescription>
         </Alert>
       )}
       {data.syncMessage && (
