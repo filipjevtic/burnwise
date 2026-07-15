@@ -1,4 +1,5 @@
 import { getPrisma } from "../db.js";
+import { fetchWithTimeout } from "../lib/fetch-timeout.js";
 
 interface JiraConfig {
   baseUrl: string;
@@ -146,7 +147,7 @@ async function findBoard(
   projectKey: string
 ): Promise<JiraBoard | null> {
   const url = `${baseUrl}/rest/agile/1.0/board?projectKeyOrId=${encodeURIComponent(projectKey)}&maxResults=100`;
-  const response = await fetch(url, { headers });
+  const response = await fetchWithTimeout(url, { headers });
   if (!response.ok) {
     throw new Error(`Jira board API error: ${response.status} ${response.statusText}`);
   }
@@ -166,7 +167,7 @@ async function fetchSprints(
   boardId: number
 ): Promise<JiraSprint[]> {
   const url = `${baseUrl}/rest/agile/1.0/board/${boardId}/sprint?maxResults=100`;
-  const response = await fetch(url, { headers });
+  const response = await fetchWithTimeout(url, { headers });
   if (!response.ok) {
     throw new Error(`Jira sprint API error: ${response.status} ${response.statusText}`);
   }
@@ -180,7 +181,7 @@ async function fetchSprintIssues(
   sprintId: number
 ): Promise<JiraIssue[]> {
   const url = `${baseUrl}/rest/agile/1.0/sprint/${sprintId}/issue?maxResults=100`;
-  const response = await fetch(url, { headers });
+  const response = await fetchWithTimeout(url, { headers });
   if (!response.ok) {
     throw new Error(`Jira sprint issue API error: ${response.status} ${response.statusText}`);
   }
@@ -209,7 +210,7 @@ async function searchIssues(
     ],
   };
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: "POST",
     headers,
     body: JSON.stringify(body),

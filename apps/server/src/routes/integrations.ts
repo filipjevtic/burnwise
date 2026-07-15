@@ -1,16 +1,32 @@
-import type { FastifyInstance, FastifyPluginOptions } from "fastify";
+import type { FastifyInstance, FastifyPluginOptions, FastifyReply } from "fastify";
 import { getPrisma } from "../db.js";
 import { syncGitHub, syncJira, syncGitLab } from "../integrations/index.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireProjectRole } from "../middleware/rbac.js";
 import { encryptSecret } from "../lib/crypto.js";
 import { assertSafeIntegrationUrl, SsrfError } from "../lib/ssrf.js";
+import { FetchTimeoutError } from "../lib/fetch-timeout.js";
 
 export async function registerIntegrationRoutes(
   app: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
   const prisma = await getPrisma();
+
+  // Run an integration sync, mapping a provider timeout (#11) to a clear 504 so
+  // a slow/unresponsive tracker doesn't surface as an opaque 500. Returns null
+  // (and sends the response) on timeout; the caller returns early.
+  async function runSync<T>(reply: FastifyReply, fn: () => Promise<T>): Promise<T | null> {
+    try {
+      return await fn();
+    } catch (err) {
+      if (err instanceof FetchTimeoutError) {
+        reply.status(504).send({ error: "The issue tracker did not respond in time. Please try again." });
+        return null;
+      }
+      throw err;
+    }
+  }
 
   // Configuring/syncing an integration requires project admin (workspace admins
   // bypass).
@@ -41,12 +57,13 @@ export async function registerIntegrationRoutes(
       },
     });
 
-    const result = await syncGitHub({
+    const result = await runSync(reply, () => syncGitHub({
       token: token || "",
       owner,
       repo,
       projectId,
-    });
+    }));
+    if (!result) return;
 
     return { success: true, provider: "github", ...result };
   });
@@ -88,14 +105,15 @@ export async function registerIntegrationRoutes(
       },
     });
 
-    const result = await syncJira({
+    const result = await runSync(reply, () => syncJira({
       baseUrl,
       email,
       token,
       projectKey,
       projectId,
       storyPointsField,
-    });
+    }));
+    if (!result) return;
 
     return { success: true, provider: "jira", ...result };
   });
@@ -134,12 +152,13 @@ export async function registerIntegrationRoutes(
       },
     });
 
-    const result = await syncGitLab({
+    const result = await runSync(reply, () => syncGitLab({
       baseUrl,
       token,
       projectPath,
       projectId,
-    });
+    }));
+    if (!result) return;
 
     return { success: true, provider: "gitlab", ...result };
   });
