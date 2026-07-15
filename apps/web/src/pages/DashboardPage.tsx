@@ -8,10 +8,11 @@ import { PageHeader, StatGrid, Stat, EmptyState, ErrorNote } from "../components
 import { SprintSummary } from "../hooks/use-project-data.js";
 import { useDevelopers } from "../hooks/use-developers.js";
 import { useTrends, type TrendBucket } from "../hooks/use-trends.js";
+import { useToolBreakdown, toolLabel } from "../hooks/use-tool-breakdown.js";
 import { useAuth } from "../context/auth.js";
 import { downloadCsv } from "../lib/download.js";
 import { TrendChart } from "../components/TrendChart.js";
-import { Coins, Clock, Ticket, Activity, BarChart3, FolderKanban, Users, LineChart, Download } from "lucide-react";
+import { Coins, Clock, Ticket, Activity, BarChart3, FolderKanban, Users, LineChart, Download, Wrench } from "lucide-react";
 
 export function DashboardPage({
   projectId,
@@ -73,6 +74,8 @@ export function DashboardPage({
           </StatGrid>
 
           <UsageTrends projectId={projectId} sprintId={selectedSprint} />
+
+          <ToolBreakdown projectId={projectId} sprintId={selectedSprint} />
 
           <Card>
             <CardHeader>
@@ -176,6 +179,65 @@ function UsageTrends({ projectId, sprintId }: { projectId: string; sprintId: str
           <Skeleton className="h-40" />
         ) : (
           <TrendChart data={chartData} format={format} />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ToolBreakdown({ projectId, sprintId }: { projectId: string; sprintId: string | null }) {
+  const { tools, loading, error } = useToolBreakdown(projectId, sprintId);
+  const totalTokens = tools.reduce((sum, t) => sum + t.tokens, 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Wrench className="h-4 w-4 text-muted-foreground" />
+          By tool
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <ErrorNote>Error: {error}</ErrorNote>
+        ) : loading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
+          </div>
+        ) : tools.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No AI-tool usage yet. Connect Claude Code (MCP), the proxy (Cursor/Aider), or the CLI to see a per-tool breakdown.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Tool</TableHead>
+                <TableHead className="text-right">Tokens</TableHead>
+                <TableHead className="text-right">Share</TableHead>
+                <TableHead className="text-right">Cost</TableHead>
+                <TableHead className="text-right">Sessions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tools.map((t) => {
+                const label = toolLabel(t.source);
+                const share = totalTokens > 0 ? (t.tokens / totalTokens) * 100 : 0;
+                return (
+                  <TableRow key={t.source}>
+                    <TableCell>
+                      <div className="font-medium">{label.name}</div>
+                      {label.hint && <div className="text-xs text-muted-foreground">{label.hint}</div>}
+                    </TableCell>
+                    <TableCell className="text-right">{t.tokens.toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{share.toFixed(0)}%</TableCell>
+                    <TableCell className="text-right">${t.cost.toFixed(4)}</TableCell>
+                    <TableCell className="text-right">{t.sessionCount}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>
