@@ -4,8 +4,10 @@ import { Button } from "../components/ui/button.js";
 import { Input } from "../components/ui/input.js";
 import { Label } from "../components/ui/label.js";
 import { Select } from "../components/ui/select.js";
+import { Switch } from "../components/ui/switch.js";
 import { PageHeader, ErrorNote } from "../components/ui/page.js";
 import { useTeam, type TeamRole } from "../hooks/use-team.js";
+import { useWorkspace } from "../hooks/use-workspace.js";
 import { useApiKeys, type CreatedApiKey } from "../hooks/use-api-keys.js";
 import { useAuth } from "../context/auth.js";
 import { Wallet, Users, Link2, Copy, Check, KeyRound, Trash2 } from "lucide-react";
@@ -50,6 +52,7 @@ export function SettingsPage({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, token]);
   const { members, loading: teamLoading, error: teamError, addMember, removeMember, updateMember } = useTeam(projectId);
+  const { workspace, update: updateWorkspace } = useWorkspace();
   const [memberEmail, setMemberEmail] = useState("");
   const [memberDisplayName, setMemberDisplayName] = useState("");
   const [memberRole, setMemberRole] = useState<TeamRole>("member");
@@ -377,6 +380,29 @@ export function SettingsPage({
           </CardHeader>
           <CardContent className="space-y-6">
             {teamError && <ErrorNote>Error: {teamError}</ErrorNote>}
+
+            {workspace && (
+              <div className="flex items-start justify-between gap-4 rounded-md border border-border p-4">
+                <div className="space-y-0.5">
+                  <div className="text-sm font-medium">Per-developer attribution</div>
+                  <p className="max-w-md text-xs text-muted-foreground">
+                    Show AI-effort broken down by individual developer. Keep this on for capacity planning; turn it off to keep Burnwise strictly team-level (no individual leaderboards).
+                  </p>
+                </div>
+                <Switch
+                  checked={workspace.showDeveloperAttribution}
+                  disabled={!isAdmin}
+                  aria-label="Show per-developer attribution"
+                  onChange={async (e) => {
+                    try {
+                      await updateWorkspace({ showDeveloperAttribution: e.target.checked });
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Failed to update workspace setting");
+                    }
+                  }}
+                />
+              </div>
+            )}
 
             {!isAdmin && (
               <p className="text-sm text-muted-foreground">

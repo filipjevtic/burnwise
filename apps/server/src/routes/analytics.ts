@@ -126,6 +126,15 @@ export async function registerAnalyticsRoutes(
     }
     if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
 
+    // Capacity-not-surveillance guardrail (#199): honor the workspace setting.
+    const ws = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { showDeveloperAttribution: true },
+    });
+    if (!ws?.showDeveloperAttribution) {
+      return { developers: [], attributionDisabled: true };
+    }
+
     const events = await prisma.event.findMany({
       where: {
         projectId,
@@ -157,6 +166,9 @@ export async function registerAnalyticsRoutes(
       };
     });
 
+    // Sort by name, not usage — a leaderboard ordering reads as a ranking; this
+    // is a capacity view (#199).
+    developers.sort((a, b) => a.name.localeCompare(b.name));
     return { developers };
   });
 
@@ -449,6 +461,14 @@ export async function registerAnalyticsRoutes(
     const { projectId, sprintId } = request.query;
     if (!projectId) return reply.status(400).send({ error: "projectId is required" });
     if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
+
+    const ws = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { showDeveloperAttribution: true },
+    });
+    if (!ws?.showDeveloperAttribution) {
+      return reply.status(403).send({ error: "Per-developer attribution is disabled for this workspace" });
+    }
 
     const events = await prisma.event.findMany({
       where: { projectId, ...(sprintId ? { ticket: { sprintId } } : {}) },

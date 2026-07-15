@@ -18,6 +18,7 @@ export interface DeveloperStat {
 export function useDevelopers(projectId: string, sprintId: string | null) {
   const { token } = useAuth();
   const [developers, setDevelopers] = useState<DeveloperStat[]>([]);
+  const [attributionDisabled, setAttributionDisabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const reqSeq = useRef(0);
@@ -35,7 +36,10 @@ export function useDevelopers(projectId: string, sprintId: string | null) {
       const res = await fetch(`${API_URL}/api/v1/analytics/developers?${params}`, { headers: authHeaders });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      if (seq === reqSeq.current) setDevelopers(data.developers || []);
+      if (seq === reqSeq.current) {
+        setDevelopers(data.developers || []);
+        setAttributionDisabled(Boolean(data.attributionDisabled));
+      }
     } catch (err) {
       if (seq === reqSeq.current) setError(err instanceof Error ? err.message : "Failed to load developer analytics");
     } finally {
@@ -48,5 +52,5 @@ export function useDevelopers(projectId: string, sprintId: string | null) {
     fetchDevelopers();
   }, [fetchDevelopers]);
 
-  return { developers, loading, error, refresh: fetchDevelopers };
+  return { developers, attributionDisabled, loading, error, refresh: fetchDevelopers };
 }

@@ -12,6 +12,10 @@ model Workspace {
   name          String
   slug          String   @unique
   setupComplete Boolean  @default(false)
+  // Capacity-not-surveillance guardrail (#199): when false, per-developer
+  // attribution is hidden across the app — Burnwise reads as planning support,
+  // not an individual leaderboard.
+  showDeveloperAttribution Boolean @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   projects      Project[]
