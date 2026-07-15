@@ -1,4 +1,5 @@
 import { getPrisma } from "../db.js";
+import { fetchWithTimeout } from "../lib/fetch-timeout.js";
 
 interface GitHubMilestone {
   number: number;
@@ -154,7 +155,7 @@ async function fetchAllPages<T>(url: string, headers: Record<string, string>): P
   let nextUrl: string | null = url;
 
   while (nextUrl) {
-    const response = await fetch(nextUrl, { headers });
+    const response = await fetchWithTimeout(nextUrl, { headers });
     if (!response.ok) {
       throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
     }
