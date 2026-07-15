@@ -40,6 +40,13 @@ export interface SessionEvent {
   payload: unknown;
 }
 
+export interface SessionFeedback {
+  effectiveness?: number;
+  wins?: string[];
+  blockers?: string[];
+  summary?: string;
+}
+
 export interface SessionDetail {
   session: {
     id: string;
@@ -51,6 +58,7 @@ export interface SessionDetail {
     endedAt: string | null;
     user: SessionUser | null;
     ticket: SessionTicket | null;
+    feedback: SessionFeedback | null;
   };
   summary: {
     totalTokens: number;

@@ -227,6 +227,7 @@ model Session {
   branch      String?
   startedAt   DateTime  @default(now())
   endedAt     DateTime?
+  feedback    Json?     // optional agent self-report (effectiveness/wins/blockers/summary) — #208
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   workspace   Workspace @relation(fields: [workspaceId], references: [id])

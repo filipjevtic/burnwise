@@ -6,7 +6,7 @@ import { Badge } from "../components/ui/badge.js";
 import { Button } from "../components/ui/button.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 import { PageHeader, EmptyState, ErrorNote } from "../components/ui/page.js";
-import { useSessions, useSessionDetail, type SessionListItem } from "../hooks/use-sessions.js";
+import { useSessions, useSessionDetail, type SessionListItem, type SessionFeedback } from "../hooks/use-sessions.js";
 import { useAuth } from "../context/auth.js";
 import { downloadCsv } from "../lib/download.js";
 import { Activity, X, Download } from "lucide-react";
@@ -160,6 +160,8 @@ function SessionDrawer({ sessionId, onClose }: { sessionId: string; onClose: () 
                 <Stat label="Events" value={String(detail.summary.eventCount)} />
               </div>
 
+              {detail.session.feedback && <FeedbackBlock feedback={detail.session.feedback} />}
+
               <div>
                 <h4 className="mb-2 text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">Event timeline</h4>
                 {detail.events.length === 0 ? (
@@ -179,6 +181,36 @@ function SessionDrawer({ sessionId, onClose }: { sessionId: string; onClose: () 
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function FeedbackBlock({ feedback }: { feedback: SessionFeedback }) {
+  return (
+    <div className="rounded-lg border border-border bg-accent/30 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <h4 className="text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">Agent feedback</h4>
+        {typeof feedback.effectiveness === "number" && (
+          <span className="font-mono text-xs tabular-nums text-foreground">{feedback.effectiveness}/5 effectiveness</span>
+        )}
+      </div>
+      {feedback.summary && <p className="mb-2 text-sm">{feedback.summary}</p>}
+      {feedback.wins && feedback.wins.length > 0 && (
+        <div className="mb-1.5">
+          <div className="text-[0.625rem] uppercase tracking-wide text-success">Wins</div>
+          <ul className="ml-4 list-disc text-sm text-muted-foreground">
+            {feedback.wins.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+        </div>
+      )}
+      {feedback.blockers && feedback.blockers.length > 0 && (
+        <div>
+          <div className="text-[0.625rem] uppercase tracking-wide text-warning">Blockers</div>
+          <ul className="ml-4 list-disc text-sm text-muted-foreground">
+            {feedback.blockers.map((b, i) => <li key={i}>{b}</li>)}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
