@@ -33,8 +33,8 @@
     "@types/react-dom": "^19.2.3",
     "@types/react-router-dom": "^5.3.3",
     "@vitejs/plugin-react": "^6.0.3",
-    "postcss": "^8.5.16",
+    "postcss": "^8.5.19",
     "typescript": "^5.5.0",
-    "vite": "^8.1.0"
+    "vite": "^8.1.4"
   }
 }
