@@ -4,8 +4,12 @@ import { getPrisma } from "../db.js";
 import { extractTicketKeys } from "../services/association.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace } from "../middleware/scope.js";
-import { verifyCiWebhook } from "../lib/webhook.js";
+import { requireProjectRole } from "../middleware/rbac.js";
+import { verifyCiWebhook, type CiProvider } from "../lib/webhook.js";
+import { encryptSecret, decryptSecret } from "../lib/crypto.js";
 import { estimateCiCost } from "../services/ci-cost.js";
+
+const CI_PROVIDERS: CiProvider[] = ["github", "gitlab", "generic"];
 
 interface GitHubActionsWorkflowRun {
   action: string;
@@ -80,20 +84,25 @@ export async function registerCIRoutes(
   ) => {
     const { projectId } = request.params;
 
-    // Verify the webhook is authentic when a shared secret is configured.
-    const verification = verifyCiWebhook(request as FastifyRequest & { rawBody?: string });
+    // Load the project first so verification uses its own secret + pinned
+    // provider (#183): a per-project secret means a leak can't forge events into
+    // other projects, and pinning stops header-choice downgrade.
+    const project = await prisma.project.findUnique({ where: { id: projectId } });
+    if (!project) {
+      return reply.status(404).send({ error: "Project not found" });
+    }
+
+    const verification = verifyCiWebhook(request as FastifyRequest & { rawBody?: string }, {
+      secret: decryptSecret(project.ciWebhookSecret),
+      provider: (project.ciProvider as CiProvider | null) ?? undefined,
+    });
     if (!verification.ok) {
       return reply.status(401).send({ error: verification.reason || "Unauthorized webhook" });
     }
     if (verification.skipped) {
       request.log.warn(
-        "CI webhook accepted without verification — set CI_WEBHOOK_SECRET to enable signature checks"
+        "CI webhook accepted without verification — configure a per-project secret (or CI_WEBHOOK_SECRET) to enable signature checks"
       );
-    }
-
-    const project = await prisma.project.findUnique({ where: { id: projectId } });
-    if (!project) {
-      return reply.status(404).send({ error: "Project not found" });
     }
 
     let payload: GenericCIPayload | null = null;
@@ -244,6 +253,51 @@ export async function registerCIRoutes(
       totalCost: agg._sum.costUsd ?? 0,
       totalDurationSeconds: durationRows[0]?.duration ?? 0,
     };
+  });
+
+  // Read the CI webhook config for a project (never returns the secret itself),
+  // so the UI can show whether a secret is set and which provider is pinned.
+  app.get<{ Params: { projectId: string } }>("/config/:projectId", { preHandler: requireAuth }, async (request, reply) => {
+    const { projectId } = request.params;
+    if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { ciWebhookSecret: true, ciProvider: true },
+    });
+    if (!project) return reply.status(404).send({ error: "Project not found" });
+    return { configured: Boolean(project.ciWebhookSecret), provider: project.ciProvider ?? null };
+  });
+
+  // Set / rotate / clear a project's CI webhook secret and pinned provider (#183).
+  // Project admin only. The secret is encrypted at rest and never returned.
+  app.put<{
+    Params: { projectId: string };
+    Body: { secret?: string | null; provider?: string | null };
+  }>("/config/:projectId", { preHandler: requireAuth }, async (request, reply) => {
+    const { projectId } = request.params;
+    if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
+
+    const { secret, provider } = request.body ?? {};
+    if (provider != null && provider !== "" && !CI_PROVIDERS.includes(provider as CiProvider)) {
+      return reply.status(400).send({ error: `provider must be one of: ${CI_PROVIDERS.join(", ")}` });
+    }
+
+    const data: { ciWebhookSecret?: string | null; ciProvider?: string | null } = {};
+    // Only touch the secret when the field is present: omit = leave unchanged,
+    // null/"" = clear, string = set (encrypted).
+    if (secret !== undefined) {
+      data.ciWebhookSecret = secret ? (encryptSecret(secret) ?? null) : null;
+    }
+    if (provider !== undefined) {
+      data.ciProvider = provider ? provider : null;
+    }
+
+    const updated = await prisma.project.update({
+      where: { id: projectId },
+      data,
+      select: { ciWebhookSecret: true, ciProvider: true },
+    });
+    return { configured: Boolean(updated.ciWebhookSecret), provider: updated.ciProvider ?? null };
   });
 }
 
