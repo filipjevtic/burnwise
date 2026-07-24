@@ -5,6 +5,7 @@ import { extractTicketKeys } from "../services/association.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace } from "../middleware/scope.js";
 import { verifyCiWebhook } from "../lib/webhook.js";
+import { estimateCiCost } from "../services/ci-cost.js";
 
 interface GitHubActionsWorkflowRun {
   action: string;
@@ -18,6 +19,15 @@ interface GitHubActionsWorkflowRun {
     conclusion: string | null;
     status: string;
     run_attempt?: number;
+    // Runner labels, when the sender enriches the workflow_run payload with them.
+    labels?: string[];
+    runner_name?: string;
+  };
+  // The workflow_job webhook carries the real runner labels per job; honor them
+  // when present so cost reflects the actual runner (#16).
+  workflow_job?: {
+    labels?: string[];
+    runner_name?: string;
   };
   repository?: {
     full_name: string;
@@ -50,15 +60,10 @@ interface GenericCIPayload {
   durationSeconds?: number;
   costUsd?: number;
   startedAt?: string;
+  // Runner label, e.g. "ubuntu-latest" / "windows-latest" / "macos-14". Drives
+  // per-minute cost; callers of the generic payload may set it (#16).
+  runner?: string;
 }
-
-const GITHUB_COST_PER_MINUTE: Record<string, number> = {
-  "ubuntu-latest": 0.008,
-  "ubuntu-22.04": 0.008,
-  "windows-latest": 0.016,
-  "macos-latest": 0.08,
-  "macos-13": 0.08,
-};
 
 export async function registerCIRoutes(
   app: FastifyInstance,
@@ -128,7 +133,7 @@ export async function registerCIRoutes(
     }
 
     const status = normalizeCiStatus(payload.status);
-    const costUsd = payload.costUsd ?? estimateCost(payload.provider, payload.durationSeconds);
+    const costUsd = payload.costUsd ?? estimateCiCost(payload.provider, payload.durationSeconds, payload.runner);
 
     // Idempotency (#6): CI providers retry webhooks on timeouts, so the same run
     // (provider + runId) can arrive more than once. If we've already recorded
@@ -192,6 +197,7 @@ export async function registerCIRoutes(
         },
         metadata: {
           provider: payload.provider,
+          runner: payload.runner,
           associationMethod: ticketId ? "ticket-key-extraction" : "none",
           ticketKeys,
         },
@@ -270,6 +276,15 @@ function normalizeGitHubActions(body: GitHubActionsWorkflowRun, _workspaceId: st
     ? Math.round((new Date(run.updated_at).getTime() - new Date(run.run_started_at).getTime()) / 1000)
     : undefined;
 
+  // Prefer the workflow_job labels (the real runner), then any labels enriched
+  // onto workflow_run, then runner_name. Absent for plain workflow_run events,
+  // in which case cost falls back to the Linux rate.
+  const runner =
+    body.workflow_job?.labels?.[0] ??
+    run.labels?.[0] ??
+    body.workflow_job?.runner_name ??
+    run.runner_name;
+
   return {
     provider: "github",
     pipelineName: run.name,
@@ -279,6 +294,7 @@ function normalizeGitHubActions(body: GitHubActionsWorkflowRun, _workspaceId: st
     commitSha: run.head_sha,
     durationSeconds,
     startedAt: run.run_started_at,
+    runner,
   };
 }
 
@@ -338,11 +354,3 @@ function normalizeCiStatus(status: string): GenericCIPayload["status"] {
   return "running";
 }
 
-function estimateCost(provider: string, durationSeconds?: number): number | undefined {
-  if (!durationSeconds) return undefined;
-  const minutes = durationSeconds / 60;
-  if (provider === "github") {
-    return Number((minutes * GITHUB_COST_PER_MINUTE["ubuntu-latest"]).toFixed(4));
-  }
-  return undefined;
-}
