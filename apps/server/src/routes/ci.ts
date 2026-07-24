@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from "fastify";
 import { randomUUID } from "crypto";
 import { getPrisma } from "../db.js";
+import { config } from "../config.js";
 import { extractTicketKeys } from "../services/association.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace } from "../middleware/scope.js";
@@ -75,7 +76,11 @@ export async function registerCIRoutes(
 ) {
   const prisma = await getPrisma();
 
-  app.post("/webhook/:projectId", async (
+  app.post("/webhook/:projectId", {
+    // Public endpoint (authenticated by the webhook secret, not a session) —
+    // rate-limit it like the other ingest routes so it can't be flooded.
+    config: { rateLimit: { max: config.rateLimit.ingestMax, timeWindow: config.rateLimit.timeWindow } },
+  }, async (
     request: FastifyRequest<{
       Params: { projectId: string };
       Body: GitHubActionsWorkflowRun | GitLabPipelineWebhook | GenericCIPayload;
