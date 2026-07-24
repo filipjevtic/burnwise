@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { config } from "./config.js";
+import { registerOpenApi } from "./openapi.js";
 import { registerEventRoutes } from "./routes/events.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerTicketRoutes } from "./routes/tickets.js";
@@ -65,6 +66,10 @@ if (config.rateLimit.enabled) {
     allowList: (req) => req.url.startsWith("/health"),
   });
 }
+
+// Publish the OpenAPI spec (/openapi.json) and Swagger UI (/docs) generated from
+// the route table below. Registered before routes so every route is captured.
+await registerOpenApi(app, config.serverPublicUrl);
 
 await app.register(registerHealthRoutes, { prefix: "/health" });
 await app.register(registerEventRoutes, { prefix: "/api/v1/events" });

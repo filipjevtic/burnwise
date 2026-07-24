@@ -8,6 +8,10 @@ Copy-paste setup for binding AI agent work to tickets. Every path resolves the
 ticket by the same precedence: **explicit ticket > git branch (`[A-Z]+-\d+`) >
 prompt / metadata extraction.**
 
+> **API reference.** The server publishes an OpenAPI 3 spec generated from its
+> live route table at `GET /openapi.json`, with a rendered viewer at `/docs`.
+> Point any OpenAPI tooling (Postman, codegen, etc.) at `/openapi.json`.
+
 ## Prerequisites
 
 1. Complete the first-run setup wizard and create a project.
