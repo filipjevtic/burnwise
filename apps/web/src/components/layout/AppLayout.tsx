@@ -1,6 +1,6 @@
 import * as React from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Gauge, Plug, Settings, Sun, Moon, Monitor, Menu, X, LogOut, Activity, TrendingUp, Layers } from "lucide-react";
+import { LayoutDashboard, Gauge, Plug, Settings, Sun, Moon, Monitor, Menu, X, LogOut, Activity, TrendingUp, Layers, Inbox } from "lucide-react";
 import { Button } from "../ui/button.js";
 import { Select } from "../ui/select.js";
 import { useTheme } from "../../hooks/use-theme.js";
@@ -10,6 +10,7 @@ const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/portfolio", label: "Portfolio", icon: Layers },
   { to: "/sessions", label: "Sessions", icon: Activity },
+  { to: "/unresolved", label: "Unresolved", icon: Inbox },
   { to: "/velocity", label: "Velocity", icon: TrendingUp },
   { to: "/forecast", label: "Forecast", icon: Gauge },
   { to: "/integrations", label: "Integrations", icon: Plug },
