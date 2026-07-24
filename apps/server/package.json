@@ -12,7 +12,7 @@
     "db:generate": "prisma generate",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/services/*.test.ts src/lib/*.test.ts src/integrations/*.test.ts",
-    "test:coverage": "c8 node --import tsx --test dist/services/*.test.js dist/lib/*.test.js dist/integrations/*.test.js"
+    "test:coverage": "c8 node --test dist/services/*.test.js dist/lib/*.test.js dist/integrations/*.test.js"
   },
   "dependencies": {
     "@burnwise/pricing": "*",
