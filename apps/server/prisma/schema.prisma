@@ -1,6 +1,10 @@
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  // Emit .js in the generated client's relative imports so Node's ESM resolver
+  // can follow them natively — this lets the compiled tests run under plain
+  // `node --test` without the `--import tsx` loader workaround (#138).
+  importFileExtension = "js"
 }
 
 datasource db {
