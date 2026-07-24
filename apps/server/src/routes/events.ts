@@ -8,6 +8,7 @@ import { persistEvents } from "../services/ingest.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace, assertTicketInWorkspace } from "../middleware/scope.js";
 import { verifyApiKey } from "../services/apikey.js";
+import { recordAudit } from "../services/audit.js";
 import { parsePagination, buildPaginationMeta } from "../lib/pagination.js";
 
 export async function registerEventRoutes(
@@ -146,13 +147,13 @@ export async function registerEventRoutes(
     "/:eventId/resolve",
     { preHandler: requireAuth },
     async (request, reply) => {
-      const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+      const { workspaceId, userId } = (request as FastifyRequest & { user: AuthPayload }).user;
       const { ticketId } = request.body ?? {};
       if (!ticketId) return reply.status(400).send({ error: "ticketId is required" });
 
       const event = await prisma.event.findUnique({
         where: { eventId: request.params.eventId },
-        select: { id: true, projectId: true },
+        select: { id: true, projectId: true, ticketId: true },
       });
       if (!event) return reply.status(404).send({ error: "Event not found" });
       if (!(await assertProjectInWorkspace(prisma, reply, event.projectId, workspaceId))) return;
@@ -167,6 +168,14 @@ export async function registerEventRoutes(
         where: { id: event.id },
         data: { ticketId, associationMethod: "manual", associationConfidence: 1.0 },
       });
+      await recordAudit(prisma, {
+        workspaceId,
+        actorUserId: userId,
+        action: "event.resolve",
+        targetType: "event",
+        targetId: request.params.eventId,
+        metadata: { projectId: event.projectId, from: event.ticketId ?? null, to: ticketId },
+      });
       return { ok: true, eventId: request.params.eventId, ticketId };
     }
   );
@@ -177,7 +186,7 @@ export async function registerEventRoutes(
     "/:eventId/reject",
     { preHandler: requireAuth },
     async (request, reply) => {
-      const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+      const { workspaceId, userId } = (request as FastifyRequest & { user: AuthPayload }).user;
       const event = await prisma.event.findUnique({
         where: { eventId: request.params.eventId },
         select: { id: true, projectId: true, metadata: true },
@@ -195,6 +204,14 @@ export async function registerEventRoutes(
           associationMethod: "rejected",
           metadata: metadata as Prisma.InputJsonValue,
         },
+      });
+      await recordAudit(prisma, {
+        workspaceId,
+        actorUserId: userId,
+        action: "event.reject",
+        targetType: "event",
+        targetId: request.params.eventId,
+        metadata: { projectId: event.projectId, ...(reason ? { reason } : {}) },
       });
       return { ok: true, eventId: request.params.eventId };
     }
