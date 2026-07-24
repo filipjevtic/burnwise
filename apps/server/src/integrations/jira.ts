@@ -278,18 +278,75 @@ async function syncIssue(
 function extractDescription(description: JiraIssue["fields"]["description"]): string | null {
   if (!description) return null;
   if (typeof description === "string") return description;
-  // Atlassian Document Format (ADF) - simple text extraction.
+  // Atlassian Document Format (ADF).
   return extractAdfText(description);
 }
 
-function extractAdfText(node: unknown): string | null {
-  if (!node || typeof node !== "object") return null;
+// ADF block-level node types get separated by newlines; inline nodes (text,
+// mentions, emoji, …) are concatenated within their block. Anything not listed
+// here whose children are blocks is still treated as a block container.
+const ADF_BLOCK_TYPES = new Set([
+  "paragraph", "heading", "blockquote", "codeBlock", "rule", "panel",
+  "bulletList", "orderedList", "listItem",
+  "table", "tableRow", "tableCell", "tableHeader",
+  "taskList", "taskItem", "decisionList", "decisionItem",
+  "mediaSingle", "mediaGroup", "expand", "nestedExpand",
+]);
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * Extract readable text from an Atlassian Document Format (ADF) node, walking
+ * every `content` array regardless of node type (#12). Inline leaves — text,
+ * mentions, emoji, inline cards, dates — contribute their text; block nodes are
+ * separated by newlines (table cells by tabs) so structure survives as plain
+ * text. Returns null when nothing textual is found.
+ */
+export function extractAdfText(node: unknown): string | null {
+  const text = adfNodeToText(node)
+    .replace(/[ \t]+\n/g, "\n") // trim trailing spaces before newlines
+    .replace(/\n{3,}/g, "\n\n") // collapse excess blank lines
+    .trim();
+  return text || null;
+}
+
+function adfNodeToText(node: unknown): string {
+  if (Array.isArray(node)) return node.map(adfNodeToText).join("");
+  if (!node || typeof node !== "object") return "";
   const obj = node as Record<string, unknown>;
-  if (obj.type === "text") {
-    return (obj.text as string) || "";
+  const type = asString(obj.type);
+  const attrs = (obj.attrs as Record<string, unknown>) ?? {};
+
+  // Inline leaf nodes: emit their own text, no recursion needed.
+  switch (type) {
+    case "text":
+      return asString(obj.text);
+    case "hardBreak":
+      return "\n";
+    case "mention":
+      return asString(attrs.text) || (attrs.id ? `@${asString(attrs.id)}` : "");
+    case "emoji":
+      return asString(attrs.text) || asString(attrs.shortName);
+    case "date":
+      return asString(attrs.timestamp);
+    case "status":
+      return asString(attrs.text);
+    case "inlineCard":
+    case "blockCard":
+    case "embedCard":
+      return asString(attrs.url);
   }
-  if (Array.isArray(obj.content)) {
-    return obj.content.map(extractAdfText).filter(Boolean).join("\n");
-  }
-  return null;
+
+  // Container node: recurse into its content, choosing a child separator.
+  const content = obj.content;
+  if (!Array.isArray(content)) return "";
+  const separator =
+    type === "tableRow"
+      ? "\t"
+      : content.some((c) => c && typeof c === "object" && ADF_BLOCK_TYPES.has(asString((c as Record<string, unknown>).type)))
+        ? "\n"
+        : "";
+  return content.map(adfNodeToText).join(separator);
 }
