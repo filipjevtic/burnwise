@@ -13,6 +13,11 @@ import type { Event, IngestResponse } from "@burnwise/schema";
 import { resolveCostUsd } from "@burnwise/pricing";
 import { associateEvent, type AssociationCache } from "./association.js";
 import { deriveEventMetrics } from "./rollup.js";
+import { dispatchWebhooks } from "./webhook-delivery.js";
+
+interface Logger {
+  warn: (obj: unknown, msg?: string) => void;
+}
 
 /** Max rows per createMany statement to keep parameter counts well-bounded. */
 const INSERT_CHUNK_SIZE = 500;
@@ -45,10 +50,16 @@ export function backfillEventCost(eventType: string, payload: unknown): unknown 
  * duplicate eventIds are silently skipped, so webhook/exporter re-delivery is
  * safe.
  */
-export async function persistEvents(prisma: PrismaClient, events: Event[]): Promise<IngestResponse> {
+export async function persistEvents(
+  prisma: PrismaClient,
+  events: Event[],
+  logger?: Logger
+): Promise<IngestResponse> {
   const response: IngestResponse = { accepted: 0, rejected: 0, errors: [] };
   const cache: AssociationCache = { tickets: new Map(), sessions: new Map() };
-  const rows: Array<{ index: number; data: Prisma.EventCreateManyInput }> = [];
+  const rows: Array<{ index: number; data: Prisma.EventCreateManyInput; event: Event }> = [];
+  // Events that were actually persisted, for outbound webhook delivery (#21).
+  const persisted: Event[] = [];
 
   // Phase 1: resolve ticket associations and build insert rows.
   for (const [index, event] of events.entries()) {
@@ -58,8 +69,12 @@ export async function persistEvents(prisma: PrismaClient, events: Event[]): Prom
       // Denormalize metrics from the (cost-backfilled) payload so DB-side
       // rollups don't have to load payload JSON (#176).
       const metrics = deriveEventMetrics(event.eventType, payload);
+      // Deliver what was actually persisted: the cost-backfilled payload and the
+      // resolved ticket, so webhook consumers see the same data as the DB (#21).
+      const persistedEvent = { ...event, payload, ticketId: association.ticketId } as Event;
       rows.push({
         index,
+        event: persistedEvent,
         data: {
           eventId: event.eventId,
           eventType: event.eventType,
@@ -96,11 +111,15 @@ export async function persistEvents(prisma: PrismaClient, events: Event[]): Prom
     try {
       const result = await prisma.event.createMany({ data: chunk.map((r) => r.data), skipDuplicates: true });
       response.accepted += result.count;
+      // createMany can't say which rows were dedup-skipped; fire for the whole
+      // chunk (webhooks are at-least-once — consumers dedup on eventId).
+      for (const row of chunk) persisted.push(row.event);
     } catch {
       for (const row of chunk) {
         try {
           await prisma.event.create({ data: row.data });
           response.accepted++;
+          persisted.push(row.event);
         } catch (err) {
           response.rejected++;
           response.errors.push({ index: row.index, message: err instanceof Error ? err.message : "Unknown error" });
@@ -108,6 +127,9 @@ export async function persistEvents(prisma: PrismaClient, events: Event[]): Prom
       }
     }
   }
+
+  // Fire outbound webhooks without blocking the ingest response (#21).
+  void dispatchWebhooks(prisma, persisted, logger).catch(() => {});
 
   return response;
 }

@@ -22,6 +22,7 @@ import { registerWorkspaceRoutes } from "./routes/workspace.js";
 import { registerOtelRoutes } from "./routes/otel.js";
 import { registerCloudRoutes } from "./routes/cloud.js";
 import { registerAuditRoutes } from "./routes/audit.js";
+import { registerWebhookRoutes } from "./routes/webhooks.js";
 
 const app = Fastify({
   logger: true,
@@ -85,6 +86,7 @@ await app.register(registerWorkspaceRoutes, { prefix: "/api/v1/workspace" });
 await app.register(registerOtelRoutes, { prefix: "/api/v1/otel" });
 await app.register(registerCloudRoutes, { prefix: "/api/v1/cloud" });
 await app.register(registerAuditRoutes, { prefix: "/api/v1/audit" });
+await app.register(registerWebhookRoutes, { prefix: "/api/v1/webhooks" });
 
 try {
   await app.listen({ port: config.port, host: "::" });
