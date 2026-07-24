@@ -8,7 +8,8 @@ import { PageHeader, StatGrid, Stat, EmptyState } from "../components/ui/page.js
 import { Forecast } from "../hooks/use-project-data.js";
 import { useCISummary } from "../hooks/use-ci-summary.js";
 import { useVelocity } from "../hooks/use-velocity.js";
-import { TrendingUp, Wallet, Timer, Target, Activity, Cpu, Users, Gauge } from "lucide-react";
+import { useSprintCommit } from "../hooks/use-sprint-commit.js";
+import { TrendingUp, Wallet, Timer, Target, Activity, Cpu, Users, Gauge, ListChecks } from "lucide-react";
 
 export function ForecastPage({
   projectId,
@@ -25,6 +26,7 @@ export function ForecastPage({
 }) {
   const { summary: ciSummary, loading: ciLoading } = useCISummary(projectId);
   const { data: velocity, loading: velocityLoading } = useVelocity(projectId, 3);
+  const { data: commit, loading: commitLoading } = useSprintCommit(projectId, 3);
   const capacity = velocity.capacity;
 
   return (
@@ -115,6 +117,69 @@ export function ForecastPage({
                   <p className="text-xs text-muted-foreground">
                     Based on {capacity.sampleSize} sprint{capacity.sampleSize === 1 ? "" : "s"} of completed story points (high outliers excluded). Use the median as a realistic commit target.
                   </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ListChecks className="h-4 w-4 text-muted-foreground" />
+                Sprint-commit recommendation
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {commitLoading ? (
+                <Skeleton className="h-24" />
+              ) : commit.targetPoints === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  No capacity yet — a recommendation needs completed sprints to estimate from.
+                </p>
+              ) : commit.selected.length === 0 && commit.deferred.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  No backlog tickets to plan. Estimated tickets not yet assigned to a sprint appear here.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  <StatGrid cols={3}>
+                    <Stat label="Committing" value={`${commit.committedPoints} / ${commit.targetPoints} pts`} icon={Target} emphasis />
+                    <Stat label="Planning range" value={`${commit.low}–${commit.high} pts`} icon={TrendingUp} />
+                    <Stat label="Confidence" value={<Badge variant={confidenceVariant(commit.confidence)}>{commit.confidence}</Badge>} icon={Gauge} />
+                  </StatGrid>
+                  <p className="text-xs text-muted-foreground">
+                    Fills the capacity target with backlog tickets (oldest first). Commit these{" "}
+                    <span className="font-medium text-foreground">{commit.selected.length}</span> ticket{commit.selected.length === 1 ? "" : "s"} for ~{commit.committedPoints} points.
+                  </p>
+                  {commit.selected.length > 0 && (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Ticket</TableHead>
+                          <TableHead>Title</TableHead>
+                          <TableHead className="text-right">Points</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {commit.selected.map((t) => (
+                          <TableRow key={t.id}>
+                            <TableCell className="font-medium">{t.externalId || t.id.slice(0, 8)}</TableCell>
+                            <TableCell className="text-muted-foreground">{t.title || "—"}</TableCell>
+                            <TableCell className="text-right">{t.storyPoints}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                  {commit.deferred.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Deferred: {commit.deferred.filter((t) => t.reason === "over-capacity").length} over capacity
+                      {commit.deferred.some((t) => t.reason === "unestimated")
+                        ? `, ${commit.deferred.filter((t) => t.reason === "unestimated").length} unestimated (estimate to plan)`
+                        : ""}
+                      .
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>

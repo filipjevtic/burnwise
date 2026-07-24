@@ -6,6 +6,7 @@ import { rollupEvents } from "../services/rollup.js";
 import { dbRollupByField, dbDistinctCountByField, dbTrends } from "../services/aggregate-db.js";
 import { computePortfolio, type PortfolioProjectInput } from "../services/portfolio.js";
 import type { SprintInput } from "../services/velocity.js";
+import { recommendSprintCommit, DONE_STATUSES } from "../services/velocity.js";
 import type { Bucket } from "../services/trends.js";
 import { toCsv, type CsvColumn } from "../services/csv.js";
 import { detectHighOutliers } from "../services/anomaly.js";
@@ -285,6 +286,49 @@ export async function registerAnalyticsRoutes(
       })),
       window
     );
+  });
+
+  // Sprint-commit recommendation (#198): turn the velocity-based capacity into a
+  // concrete plan — a committable set of backlog tickets that fits next sprint's
+  // capacity. Backlog = not-done tickets not yet in a sprint, oldest first.
+  app.get<{
+    Querystring: { projectId?: string; window?: string };
+  }>("/sprint-commit", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    const { projectId } = request.query;
+    if (!projectId) {
+      return reply.status(400).send({ error: "projectId is required" });
+    }
+    if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
+
+    const window = Math.min(Math.max(Number(request.query.window) || 3, 1), 12);
+
+    const [sprints, backlog] = await Promise.all([
+      prisma.sprint.findMany({
+        where: { projectId },
+        orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
+        include: { tickets: { select: { status: true, storyPoints: true } } },
+      }),
+      prisma.ticket.findMany({
+        where: { projectId, sprintId: null, status: { notIn: [...DONE_STATUSES] } },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, externalId: true, title: true, storyPoints: true },
+      }),
+    ]);
+
+    const { capacity } = computeVelocity(
+      sprints.map((s) => ({
+        id: s.id,
+        name: s.name,
+        startDate: s.startDate,
+        endDate: s.endDate,
+        status: s.status,
+        tickets: s.tickets,
+      })),
+      window
+    );
+
+    return recommendSprintCommit(capacity, backlog);
   });
 
   // Sprint efficiency: AI effort (cost/tokens/duration) per completed story

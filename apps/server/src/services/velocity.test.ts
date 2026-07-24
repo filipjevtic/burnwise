@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { computeVelocity, isCompleted, recommendCapacity, type SprintInput } from "./velocity.js";
+import { computeVelocity, isCompleted, recommendCapacity, recommendSprintCommit, type SprintInput, type CapacityRecommendation } from "./velocity.js";
 
 function sprint(id: string, tickets: Array<[string, number | null]>, status = "closed"): SprintInput {
   return {
@@ -137,5 +137,64 @@ describe("recommendCapacity", () => {
     assert.strictEqual(recommendCapacity([5, 6]).confidence, "low");
     assert.strictEqual(recommendCapacity([5, 6, 7, 8]).confidence, "medium");
     assert.strictEqual(recommendCapacity([5, 6, 7, 8, 9, 10]).confidence, "high");
+  });
+});
+
+describe("recommendSprintCommit", () => {
+  const capacity: CapacityRecommendation = {
+    recommendedPoints: 10,
+    mean: 10,
+    median: 10,
+    low: 7,
+    high: 13,
+    sampleSize: 5,
+    confidence: "high",
+  };
+
+  it("fills the capacity target in order and defers overflow", () => {
+    const rec = recommendSprintCommit(capacity, [
+      { id: "a", externalId: "P-1", title: "A", storyPoints: 5 },
+      { id: "b", externalId: "P-2", title: "B", storyPoints: 3 },
+      { id: "c", externalId: "P-3", title: "C", storyPoints: 5 }, // would make 13 > 10 -> defer
+      { id: "d", externalId: "P-4", title: "D", storyPoints: 2 }, // fits (5+3+2=10)
+    ]);
+    assert.deepStrictEqual(rec.selected.map((t) => t.id), ["a", "b", "d"]);
+    assert.strictEqual(rec.committedPoints, 10);
+    assert.strictEqual(rec.deferred.length, 1);
+    assert.deepStrictEqual(
+      rec.deferred.map((t) => [t.id, t.reason]),
+      [["c", "over-capacity"]]
+    );
+    assert.strictEqual(rec.targetPoints, 10);
+    assert.strictEqual(rec.confidence, "high");
+  });
+
+  it("surfaces unestimated tickets separately", () => {
+    const rec = recommendSprintCommit(capacity, [
+      { id: "a", storyPoints: 4 },
+      { id: "b", storyPoints: null },
+    ]);
+    assert.deepStrictEqual(rec.selected.map((t) => t.id), ["a"]);
+    assert.deepStrictEqual(
+      rec.deferred.map((t) => [t.id, t.reason]),
+      [["b", "unestimated"]]
+    );
+  });
+
+  it("defers everything when capacity is zero (no history)", () => {
+    const zero: CapacityRecommendation = { recommendedPoints: 0, mean: 0, median: 0, low: 0, high: 0, sampleSize: 0, confidence: "low" };
+    const rec = recommendSprintCommit(zero, [{ id: "a", storyPoints: 3 }]);
+    assert.strictEqual(rec.selected.length, 0);
+    assert.strictEqual(rec.committedPoints, 0);
+    assert.strictEqual(rec.deferred[0].reason, "over-capacity");
+  });
+
+  it("includes zero-point tickets (they always fit)", () => {
+    const rec = recommendSprintCommit(capacity, [
+      { id: "a", storyPoints: 10 },
+      { id: "b", storyPoints: 0 },
+    ]);
+    assert.deepStrictEqual(rec.selected.map((t) => t.id), ["a", "b"]);
+    assert.strictEqual(rec.committedPoints, 10);
   });
 });
