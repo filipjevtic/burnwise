@@ -57,7 +57,7 @@ export async function registerEventRoutes(
         : event
     );
 
-    return persistEvents(prisma, resolvedEvents);
+    return persistEvents(prisma, resolvedEvents, request.log);
   });
 
   app.get<{ Params: { ticketId: string }; Querystring: { limit?: string; offset?: string } }>("/by-ticket/:ticketId", { preHandler: requireAuth }, async (request, reply) => {

@@ -304,6 +304,49 @@ their own; when neither is set, webhooks are rejected in production and skipped
 (with a warning) in development. See
 [SELFHOST.md](SELFHOST.md#secrets-at-rest) for secret configuration.
 
+## Outbound webhooks
+
+Subscribe an external URL to platform events (#21). When a matching event is
+ingested, Burnwise POSTs it to your endpoint, so you can build your own
+integrations without polling. Subscriptions are per-project and managed by a
+project admin.
+
+```bash
+# Create a subscription (project admin JWT). Omit eventTypes to receive all.
+curl -X POST $ATS_SERVER_URL/api/v1/webhooks \
+  -H "Authorization: Bearer <admin-jwt>" -H 'Content-Type: application/json' \
+  -d '{"projectId":"<id>","url":"https://example.com/hook","secret":"<random>","eventTypes":["llm.response","ci.run"]}'
+
+# List / update / delete (secret is never returned, only `hasSecret`).
+curl $ATS_SERVER_URL/api/v1/webhooks?projectId=<id> -H "Authorization: Bearer <admin-jwt>"
+curl -X PUT $ATS_SERVER_URL/api/v1/webhooks/<subId> -H "Authorization: Bearer <admin-jwt>" \
+  -H 'Content-Type: application/json' -d '{"active":false}'
+curl -X DELETE $ATS_SERVER_URL/api/v1/webhooks/<subId> -H "Authorization: Bearer <admin-jwt>"
+```
+
+Each delivery is a JSON `POST`:
+
+```json
+{
+  "type": "llm.response",
+  "deliveredAt": "2026-07-24T00:00:00.000Z",
+  "event": { "eventId": "…", "eventType": "llm.response", "projectId": "…",
+             "ticketId": "…", "payload": { "provider": "anthropic", "costUsd": 0.0018, … } }
+}
+```
+
+Subscribable event types: `llm.request`, `llm.response`, `trace.span`,
+`session.activity`, `ci.run`. When a subscription has a secret, the body is
+signed with HMAC-SHA256 in `X-Burnwise-Signature` (`sha256=<hex>`) — verify it
+before trusting the payload (recompute the HMAC over the raw body). The
+`X-Burnwise-Event` header carries the event type.
+
+Delivery is **at-least-once**: retried a few times on failure and possibly
+re-sent if an event is re-ingested, so make your handler idempotent on
+`event.eventId`. Subscription URLs are SSRF-checked on save (no loopback /
+link-local; private hosts require `INTEGRATION_ALLOW_PRIVATE_HOSTS=true`). The
+signing secret is encrypted at rest and never returned by the API.
+
 ## Choosing an auth method
 
 - **Personal API key (`bw_sk_...`)** is preferred. Events bind to the real

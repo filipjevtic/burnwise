@@ -59,8 +59,28 @@ model Project {
   invites     Invite[]
   apiKeys     ApiKey[]
   sessions    Session[]
+  webhooks    WebhookSubscription[]
 
   @@unique([workspaceId, slug])
+}
+
+// Outbound webhook subscription (#21): deliver platform events to a customer URL.
+// Per-project so a project admin manages its own integrations. The signing
+// secret is encrypted at rest and used to HMAC-sign each delivery. An empty
+// eventTypes list means "all event types".
+model WebhookSubscription {
+  id         String   @id @default(uuid())
+  projectId  String
+  url        String
+  secret     String?  // encrypted at rest; signs deliveries via X-Burnwise-Signature
+  eventTypes String[] @default([])
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, active])
 }
 
 model User {
