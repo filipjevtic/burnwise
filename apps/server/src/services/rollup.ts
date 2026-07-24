@@ -166,6 +166,35 @@ export function aggregateByProvider(events: RollupEvent[]): ProviderRollup[] {
     .sort((a, b) => b.tokens - a.tokens);
 }
 
+/** Denormalized per-event metrics, mirrored into columns at ingest (#176). */
+export interface EventMetrics {
+  totalTokens: number | null;
+  costUsd: number | null;
+  durationSeconds: number | null;
+  provider: string | null;
+}
+
+/**
+ * Derive the aggregation metrics for one event from its payload — the single
+ * source of truth shared by the in-JS `accumulate` above and the ingest path
+ * that persists them as columns, so DB-side rollups (#176) match exactly. Fields
+ * that don't apply to the event type are null (SUM ignores null like 0).
+ */
+export function deriveEventMetrics(eventType: string, payload: unknown): EventMetrics {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const metrics: EventMetrics = { totalTokens: null, costUsd: null, durationSeconds: null, provider: null };
+  if (eventType === "llm.response") {
+    metrics.totalTokens = numOrNull(p.totalTokens);
+    metrics.costUsd = numOrNull(p.costUsd);
+    metrics.provider = typeof p.provider === "string" && p.provider.trim() ? p.provider : null;
+  } else if (eventType === "ci.run") {
+    metrics.costUsd = numOrNull(p.costUsd);
+  } else if (eventType === "session.activity") {
+    metrics.durationSeconds = numOrNull(p.durationSeconds);
+  }
+  return metrics;
+}
+
 function accumulate(acc: Rollup, event: RollupEvent): void {
   const payload = (event.payload ?? {}) as Record<string, unknown>;
   if (event.eventType === "llm.response") {
@@ -181,4 +210,8 @@ function accumulate(acc: Rollup, event: RollupEvent): void {
 
 function num(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function numOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

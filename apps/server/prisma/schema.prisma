@@ -181,6 +181,14 @@ model Event {
   parentSpanId  String?
   payload       Json
   metadata      Json     @default("{}")
+  // Denormalized aggregation metrics (#176), derived from `payload` at ingest so
+  // rollups aggregate in the DB instead of loading full payload JSON into Node.
+  // Populated per event type: totalTokens/provider on llm.response, costUsd on
+  // llm.response + ci.run, durationSeconds on session.activity; null otherwise.
+  totalTokens     Int?
+  costUsd         Float?
+  durationSeconds Int?
+  provider        String?
   // Derived fields populated by association service
   associationMethod String?
   associationConfidence Float?
@@ -192,6 +200,8 @@ model Event {
 
   @@index([projectId, ticketId])
   @@index([projectId, timestamp])
+  // Supports DB-side metric rollups filtered by project + event type (#176).
+  @@index([projectId, eventType])
   @@index([traceId])
   @@index([sessionId])
 }

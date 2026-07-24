@@ -12,6 +12,7 @@ import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { Event, IngestResponse } from "@burnwise/schema";
 import { resolveCostUsd } from "@burnwise/pricing";
 import { associateEvent, createAssociationCache } from "./association.js";
+import { deriveEventMetrics } from "./rollup.js";
 
 /** Max rows per createMany statement to keep parameter counts well-bounded. */
 const INSERT_CHUNK_SIZE = 500;
@@ -54,6 +55,9 @@ export async function persistEvents(prisma: PrismaClient, events: Event[]): Prom
     try {
       const association = await associateEvent(event, cache);
       const payload = backfillEventCost(event.eventType, event.payload);
+      // Denormalize metrics from the (cost-backfilled) payload so DB-side
+      // rollups don't have to load payload JSON (#176).
+      const metrics = deriveEventMetrics(event.eventType, payload);
       rows.push({
         index,
         data: {
@@ -71,6 +75,10 @@ export async function persistEvents(prisma: PrismaClient, events: Event[]): Prom
           parentSpanId: event.parentSpanId,
           payload: payload as Prisma.InputJsonValue,
           metadata: event.metadata as Prisma.InputJsonValue,
+          totalTokens: metrics.totalTokens,
+          costUsd: metrics.costUsd,
+          durationSeconds: metrics.durationSeconds,
+          provider: metrics.provider,
           associationMethod: association.method,
           associationConfidence: association.confidence,
         },

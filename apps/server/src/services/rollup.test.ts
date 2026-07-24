@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { rollupEvents, rollupBy, emptyRollup, aggregateByDeveloper, aggregateBySource, aggregateByProvider } from "./rollup.js";
+import { rollupEvents, rollupBy, emptyRollup, aggregateByDeveloper, aggregateBySource, aggregateByProvider, deriveEventMetrics } from "./rollup.js";
 
 describe("rollupEvents", () => {
   it("returns an empty rollup for no events", () => {
@@ -162,5 +162,61 @@ describe("aggregateByProvider", () => {
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].provider, "unknown");
     assert.strictEqual(result[0].tokens, 15);
+  });
+});
+
+describe("deriveEventMetrics", () => {
+  it("derives tokens/cost/provider for llm.response, matching accumulate semantics", () => {
+    assert.deepStrictEqual(
+      deriveEventMetrics("llm.response", { provider: "anthropic", totalTokens: 1500, costUsd: 0.42 }),
+      { totalTokens: 1500, costUsd: 0.42, durationSeconds: null, provider: "anthropic" }
+    );
+  });
+
+  it("derives only cost for ci.run", () => {
+    assert.deepStrictEqual(
+      deriveEventMetrics("ci.run", { costUsd: 1.25 }),
+      { totalTokens: null, costUsd: 1.25, durationSeconds: null, provider: null }
+    );
+  });
+
+  it("derives only duration for session.activity", () => {
+    assert.deepStrictEqual(
+      deriveEventMetrics("session.activity", { durationSeconds: 300 }),
+      { totalTokens: null, costUsd: null, durationSeconds: 300, provider: null }
+    );
+  });
+
+  it("returns nulls for non-numeric or blank fields and other event types", () => {
+    assert.deepStrictEqual(
+      deriveEventMetrics("llm.response", { provider: "  ", totalTokens: "nope", costUsd: null }),
+      { totalTokens: null, costUsd: null, durationSeconds: null, provider: null }
+    );
+    assert.deepStrictEqual(
+      deriveEventMetrics("trace.span", { name: "x" }),
+      { totalTokens: null, costUsd: null, durationSeconds: null, provider: null }
+    );
+  });
+
+  it("agrees with rollupEvents totals when summed", () => {
+    const events = [
+      { eventType: "llm.response", payload: { provider: "openai", totalTokens: 100, costUsd: 1 } },
+      { eventType: "ci.run", payload: { costUsd: 2 } },
+      { eventType: "session.activity", payload: { durationSeconds: 60 } },
+    ];
+    const summed = events.reduce(
+      (acc, e) => {
+        const m = deriveEventMetrics(e.eventType, e.payload);
+        acc.tokens += m.totalTokens ?? 0;
+        acc.cost += m.costUsd ?? 0;
+        acc.durationSeconds += m.durationSeconds ?? 0;
+        return acc;
+      },
+      { tokens: 0, cost: 0, durationSeconds: 0 }
+    );
+    const rolled = rollupEvents(events);
+    assert.strictEqual(summed.tokens, rolled.tokens);
+    assert.strictEqual(summed.cost, rolled.cost);
+    assert.strictEqual(summed.durationSeconds, rolled.durationSeconds);
   });
 });
