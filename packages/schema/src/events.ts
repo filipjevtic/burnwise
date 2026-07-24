@@ -10,7 +10,7 @@ export const baseEventSchema = z.object({
     "ci.run",
   ]),
   timestamp: z.string().datetime(),
-  source: z.enum(["proxy", "ide-plugin", "cli", "ci", "browser", "otel"]),
+  source: z.enum(["proxy", "ide-plugin", "cli", "ci", "browser", "otel", "cloud"]),
   workspaceId: z.string().min(1),
   projectId: z.string().min(1),
   userId: z.string().min(1),
