@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyRepl
 import type { Event } from "@burnwise/schema";
 import { ingestBatchSchema } from "@burnwise/schema";
 import { config } from "../config.js";
+import type { Prisma } from "../generated/prisma/client.js";
 import { getPrisma } from "../db.js";
 import { persistEvents } from "../services/ingest.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
@@ -99,4 +100,103 @@ export async function registerEventRoutes(
     ]);
     return { events, pagination: buildPaginationMeta(pagination, total) };
   });
+
+  // Events the association pipeline couldn't attribute to a ticket, for manual
+  // resolution (#24). Excludes ones already rejected. `not: "rejected"` alone
+  // would drop NULL-method rows in SQL, so keep them via the OR.
+  app.get<{
+    Querystring: { projectId?: string; limit?: string; offset?: string };
+  }>("/unresolved", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    const { projectId } = request.query;
+    if (!projectId) return reply.status(400).send({ error: "projectId is required" });
+    if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
+
+    const pagination = parsePagination(request.query);
+    const where = {
+      projectId,
+      ticketId: null,
+      OR: [{ associationMethod: null }, { associationMethod: { not: "rejected" } }],
+    };
+    const [events, total] = await Promise.all([
+      prisma.event.findMany({
+        where,
+        orderBy: { timestamp: "desc" },
+        skip: pagination.offset,
+        take: pagination.limit,
+        select: {
+          eventId: true,
+          eventType: true,
+          timestamp: true,
+          source: true,
+          sessionId: true,
+          payload: true,
+          metadata: true,
+          associationMethod: true,
+        },
+      }),
+      prisma.event.count({ where }),
+    ]);
+    return { events, pagination: buildPaginationMeta(pagination, total) };
+  });
+
+  // Manually attribute an unresolved event to a ticket (#24). Records it as a
+  // high-confidence "manual" association; the ticket must be in the same project.
+  app.post<{ Params: { eventId: string }; Body: { ticketId?: string } }>(
+    "/:eventId/resolve",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+      const { ticketId } = request.body ?? {};
+      if (!ticketId) return reply.status(400).send({ error: "ticketId is required" });
+
+      const event = await prisma.event.findUnique({
+        where: { eventId: request.params.eventId },
+        select: { id: true, projectId: true },
+      });
+      if (!event) return reply.status(404).send({ error: "Event not found" });
+      if (!(await assertProjectInWorkspace(prisma, reply, event.projectId, workspaceId))) return;
+
+      const ticket = await assertTicketInWorkspace(prisma, reply, ticketId, workspaceId);
+      if (!ticket) return;
+      if (ticket.projectId !== event.projectId) {
+        return reply.status(400).send({ error: "Ticket belongs to a different project" });
+      }
+
+      await prisma.event.update({
+        where: { id: event.id },
+        data: { ticketId, associationMethod: "manual", associationConfidence: 1.0 },
+      });
+      return { ok: true, eventId: request.params.eventId, ticketId };
+    }
+  );
+
+  // Mark an unresolved event as intentionally not attributable (#24), so it drops
+  // out of the resolution queue. Keeps ticketId null; stores an optional reason.
+  app.post<{ Params: { eventId: string }; Body: { reason?: string } }>(
+    "/:eventId/reject",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+      const event = await prisma.event.findUnique({
+        where: { eventId: request.params.eventId },
+        select: { id: true, projectId: true, metadata: true },
+      });
+      if (!event) return reply.status(404).send({ error: "Event not found" });
+      if (!(await assertProjectInWorkspace(prisma, reply, event.projectId, workspaceId))) return;
+
+      const reason = typeof request.body?.reason === "string" ? request.body.reason.trim() : "";
+      const metadata = { ...((event.metadata as Record<string, unknown>) ?? {}) };
+      if (reason) metadata.rejectionReason = reason;
+
+      await prisma.event.update({
+        where: { id: event.id },
+        data: {
+          associationMethod: "rejected",
+          metadata: metadata as Prisma.InputJsonValue,
+        },
+      });
+      return { ok: true, eventId: request.params.eventId };
+    }
+  );
 }
