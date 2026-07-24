@@ -2,10 +2,11 @@ import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyRepl
 import { getPrisma } from "../db.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace } from "../middleware/scope.js";
-import { rollupEvents, aggregateByDeveloper, aggregateBySource, aggregateByProvider, rollupBy } from "../services/rollup.js";
+import { rollupEvents } from "../services/rollup.js";
+import { dbRollupByField, dbDistinctCountByField, dbTrends } from "../services/aggregate-db.js";
 import { computePortfolio, type PortfolioProjectInput } from "../services/portfolio.js";
 import type { SprintInput } from "../services/velocity.js";
-import { bucketEvents, type Bucket } from "../services/trends.js";
+import type { Bucket } from "../services/trends.js";
 import { toCsv, type CsvColumn } from "../services/csv.js";
 import { detectHighOutliers } from "../services/anomaly.js";
 import { computeVelocity } from "../services/velocity.js";
@@ -104,16 +105,16 @@ export async function registerAnalyticsRoutes(
 
     const bucket: Bucket = request.query.bucket === "week" ? "week" : "day";
 
-    const events = await prisma.event.findMany({
-      where: {
-        projectId,
-        ...(sprintId ? { ticket: { sprintId } } : {}),
-      },
-      select: { timestamp: true, eventType: true, payload: true },
-      orderBy: { timestamp: "asc" },
-    });
+    // Resolve the sprint's tickets up front — the relation filter can't cross
+    // into the raw-SQL date_trunc aggregation (#176).
+    let ticketIds: string[] | null = null;
+    if (sprintId) {
+      const tickets = await prisma.ticket.findMany({ where: { sprintId, projectId }, select: { id: true } });
+      ticketIds = tickets.map((t) => t.id);
+    }
 
-    return { bucket, points: bucketEvents(events, bucket) };
+    const points = await dbTrends(prisma, projectId, ticketIds, bucket);
+    return { bucket, points };
   });
 
   // Per-developer usage rollups for a project (optionally a sprint).
@@ -136,36 +137,8 @@ export async function registerAnalyticsRoutes(
       return { developers: [], attributionDisabled: true };
     }
 
-    const events = await prisma.event.findMany({
-      where: {
-        projectId,
-        ...(sprintId ? { ticket: { sprintId } } : {}),
-      },
-      select: { userId: true, eventType: true, payload: true, sessionId: true, ticketId: true },
-    });
-
-    const aggregates = aggregateByDeveloper(events);
-
-    const users = await prisma.user.findMany({
-      where: { id: { in: aggregates.map((a) => a.userId) } },
-      select: { id: true, email: true, displayName: true },
-    });
-    const userMap = new Map(users.map((u) => [u.id, u]));
-
-    const developers = aggregates.map((agg) => {
-      const u = userMap.get(agg.userId);
-      return {
-        userId: agg.userId,
-        name: u ? u.displayName || u.email : agg.userId,
-        email: u?.email ?? null,
-        tokens: agg.tokens,
-        cost: agg.cost,
-        durationSeconds: agg.durationSeconds,
-        eventCount: agg.eventCount,
-        sessionCount: agg.sessionCount,
-        ticketCount: agg.ticketCount,
-      };
-    });
+    const where = { projectId, ...(sprintId ? { ticket: { sprintId } } : {}) };
+    const developers = await developerRollups(prisma, where);
 
     // Sort by name, not usage — a leaderboard ordering reads as a ranking; this
     // is a capacity view (#199).
@@ -186,15 +159,16 @@ export async function registerAnalyticsRoutes(
     }
     if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
 
-    const events = await prisma.event.findMany({
-      where: {
-        projectId,
-        ...(sprintId ? { ticket: { sprintId } } : {}),
-      },
-      select: { source: true, eventType: true, payload: true, sessionId: true },
-    });
+    const where = { projectId, ...(sprintId ? { ticket: { sprintId } } : {}) };
+    const [rollups, sessionCounts] = await Promise.all([
+      dbRollupByField(prisma, where, "source", "unknown"),
+      dbDistinctCountByField(prisma, where, "source", "sessionId"),
+    ]);
 
-    return { sources: aggregateBySource(events) };
+    const sources = [...rollups.entries()]
+      .map(([source, r]) => ({ source, ...r, sessionCount: sessionCounts.get(source) ?? 0 }))
+      .sort((a, b) => b.tokens - a.tokens);
+    return { sources };
   });
 
   // Per-provider usage rollups for a project (optionally a sprint) — the honest
@@ -211,16 +185,17 @@ export async function registerAnalyticsRoutes(
     }
     if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
 
-    const events = await prisma.event.findMany({
-      where: {
-        projectId,
-        eventType: "llm.response",
-        ...(sprintId ? { ticket: { sprintId } } : {}),
-      },
-      select: { eventType: true, payload: true },
-    });
+    const where = {
+      projectId,
+      eventType: "llm.response",
+      ...(sprintId ? { ticket: { sprintId } } : {}),
+    };
+    const rollups = await dbRollupByField(prisma, where, "provider", "unknown");
 
-    return { providers: aggregateByProvider(events) };
+    const providers = [...rollups.entries()]
+      .map(([provider, r]) => ({ provider, ...r }))
+      .sort((a, b) => b.tokens - a.tokens);
+    return { providers };
   });
 
   // Portfolio: velocity + AI-assisted effort across ALL projects in the
@@ -238,7 +213,7 @@ export async function registerAnalyticsRoutes(
     if (projects.length === 0) return computePortfolio([]);
 
     const projectIds = projects.map((p) => p.id);
-    const [sprints, events] = await Promise.all([
+    const [sprints, effortByProject] = await Promise.all([
       prisma.sprint.findMany({
         where: { projectId: { in: projectIds } },
         orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
@@ -252,10 +227,7 @@ export async function registerAnalyticsRoutes(
           tickets: { select: { status: true, storyPoints: true } },
         },
       }),
-      prisma.event.findMany({
-        where: { projectId: { in: projectIds } },
-        select: { projectId: true, eventType: true, payload: true },
-      }),
+      dbRollupByField(prisma, { projectId: { in: projectIds } }, "projectId"),
     ]);
 
     const sprintsByProject = new Map<string, SprintInput[]>();
@@ -264,7 +236,6 @@ export async function registerAnalyticsRoutes(
       list.push({ id: s.id, name: s.name, startDate: s.startDate, endDate: s.endDate, status: s.status, tickets: s.tickets });
       sprintsByProject.set(s.projectId, list);
     }
-    const effortByProject = rollupBy(events, (e) => e.projectId);
 
     const inputs: PortfolioProjectInput[] = projects.map((p) => {
       const effort = effortByProject.get(p.id);
@@ -438,18 +409,25 @@ export async function registerAnalyticsRoutes(
     if (!projectId) return reply.status(400).send({ error: "projectId is required" });
     if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
 
+    // Roll up per session in the DB rather than loading every session's event
+    // payloads (#176). Group events by their sessionId (matching the previous
+    // session-relation rollup exactly, incl. multi-ticket sessions).
     const sessions = await prisma.session.findMany({
       where: { projectId, ...(sprintId ? { ticket: { sprintId } } : {}) },
       orderBy: { startedAt: "desc" },
       include: {
         user: { select: { email: true, displayName: true } },
         ticket: { select: { externalId: true } },
-        events: { select: { eventType: true, payload: true } },
       },
     });
+    const rollupsBySession = await dbRollupByField(
+      prisma,
+      { projectId, sessionId: { in: sessions.map((s) => s.id) } },
+      "sessionId"
+    );
 
     const rows = sessions.map((s) => {
-      const r = rollupEvents(s.events);
+      const r = rollupsBySession.get(s.id) ?? { tokens: 0, cost: 0, durationSeconds: 0, eventCount: 0 };
       return {
         developer: s.user ? s.user.displayName || s.user.email : "",
         ticket: s.ticket?.externalId || s.ticketKey || "",
@@ -499,30 +477,19 @@ export async function registerAnalyticsRoutes(
       return reply.status(403).send({ error: "Per-developer attribution is disabled for this workspace" });
     }
 
-    const events = await prisma.event.findMany({
-      where: { projectId, ...(sprintId ? { ticket: { sprintId } } : {}) },
-      select: { userId: true, eventType: true, payload: true, sessionId: true, ticketId: true },
-    });
-    const aggregates = aggregateByDeveloper(events);
-    const users = await prisma.user.findMany({
-      where: { id: { in: aggregates.map((a) => a.userId) } },
-      select: { id: true, email: true, displayName: true },
-    });
-    const userMap = new Map(users.map((u) => [u.id, u]));
+    const where = { projectId, ...(sprintId ? { ticket: { sprintId } } : {}) };
+    const developers = await developerRollups(prisma, where);
 
-    const rows = aggregates.map((a) => {
-      const u = userMap.get(a.userId);
-      return {
-        developer: u ? u.displayName || u.email : a.userId,
-        email: u?.email ?? "",
-        tokens: a.tokens,
-        cost: a.cost,
-        durationSeconds: a.durationSeconds,
-        events: a.eventCount,
-        sessions: a.sessionCount,
-        tickets: a.ticketCount,
-      };
-    });
+    const rows = developers.map((d) => ({
+      developer: d.name,
+      email: d.email ?? "",
+      tokens: d.tokens,
+      cost: d.cost,
+      durationSeconds: d.durationSeconds,
+      events: d.eventCount,
+      sessions: d.sessionCount,
+      tickets: d.ticketCount,
+    }));
 
     const columns: CsvColumn<(typeof rows)[number]>[] = [
       { header: "Developer", value: (r) => r.developer },
@@ -536,6 +503,44 @@ export async function registerAnalyticsRoutes(
     ];
 
     return sendCsv(reply, "developers.csv", toCsv(rows, columns));
+  });
+}
+
+/**
+ * Per-developer rollups aggregated in the DB (#176), with display names joined
+ * in. Shared by the /developers view and its CSV export so both stay identical.
+ */
+async function developerRollups(
+  prisma: Awaited<ReturnType<typeof getPrisma>>,
+  where: Parameters<typeof dbRollupByField>[1]
+) {
+  const [rollups, sessionCounts, ticketCounts] = await Promise.all([
+    dbRollupByField(prisma, where, "userId"),
+    dbDistinctCountByField(prisma, where, "userId", "sessionId"),
+    dbDistinctCountByField(prisma, where, "userId", "ticketId"),
+  ]);
+
+  const userIds = [...rollups.keys()];
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: { id: true, email: true, displayName: true },
+  });
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  return userIds.map((userId) => {
+    const r = rollups.get(userId)!;
+    const u = userMap.get(userId);
+    return {
+      userId,
+      name: u ? u.displayName || u.email : userId,
+      email: u?.email ?? null,
+      tokens: r.tokens,
+      cost: r.cost,
+      durationSeconds: r.durationSeconds,
+      eventCount: r.eventCount,
+      sessionCount: sessionCounts.get(userId) ?? 0,
+      ticketCount: ticketCounts.get(userId) ?? 0,
+    };
   });
 }
 
