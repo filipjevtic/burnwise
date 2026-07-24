@@ -93,15 +93,15 @@ erDiagram
 3. The ingestion API validates the batch schema.
 4. The association service links each event to a ticket by precedence: explicit session/header ticket > git branch convention > prompt/metadata extraction.
 5. Events are persisted in PostgreSQL, grouped under their session.
-6. The dashboard derives velocity (committed vs completed points), efficiency (effort per completed point), session/trace rollups, and a velocity-based capacity recommendation — all from the shared event-rollup math.
+6. The dashboard derives velocity (committed vs completed points), efficiency (effort per completed point), session/trace rollups, and a velocity-based capacity recommendation, all from the shared event-rollup math.
 
 ## Sprint-planning analytics
 
 All analytics share one event-rollup helper so ticket, sprint, session, and developer summaries stay consistent:
 
-- **Velocity** — committed vs completed story points, completion rate (estimate accuracy), and a trailing rolling average per sprint.
-- **Efficiency** — cost / tokens / agent-time per completed story point, trended across sprints.
-- **Capacity recommendation** — an anomaly-aware estimate (median ± 1 stddev of clean completed-points history) for the next sprint.
+- **Velocity**: committed vs completed story points, completion rate (estimate accuracy), and a trailing rolling average per sprint.
+- **Efficiency**: cost / tokens / agent-time per completed story point, trended across sprints.
+- **Capacity recommendation**: an anomaly-aware estimate (median ± 1 stddev of clean completed-points history) for the next sprint.
 
 ## Integration Flow
 

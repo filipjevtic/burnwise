@@ -10,22 +10,22 @@
 [![CodeQL](https://github.com/filipjevtic/burnwise/actions/workflows/codeql.yml/badge.svg)](https://github.com/filipjevtic/burnwise/actions/workflows/codeql.yml)
 [![Security](https://github.com/filipjevtic/burnwise/actions/workflows/security.yml/badge.svg)](https://github.com/filipjevtic/burnwise/actions/workflows/security.yml)
 
-**Vendor-neutral engineering intelligence for AI-assisted delivery.** AI coding agents make individual developers faster, but sprint planning is still a guessing game built on pre-AI baselines. Burnwise is a self-hosted, open-source analytics layer that attributes AI-assisted effort — tokens, traces, and coding time — across your **tickets, projects, and developers** in Jira / GitHub / GitLab, so PMs and EMs can calibrate estimates and plan sprints on *actual* effort instead of guesswork. It's tool- and vendor-neutral by design: see the whole picture across Claude Code, Cursor, and any OpenAI-compatible agent in one place. Token and cost budgets come along for the ride — but the headline is **delivery, not spend**.
+**Vendor-neutral engineering intelligence for AI-assisted delivery.** AI coding agents make individual developers faster, but sprint planning still runs on pre-AI baselines. Burnwise is a self-hosted, open-source analytics layer that attributes AI-assisted effort (tokens, traces, and coding time) to your **tickets, projects, and developers** in Jira, GitHub, and GitLab, so PMs and EMs can calibrate estimates and plan sprints on *actual* effort instead of guesswork. It reads Claude Code, Cursor, and any OpenAI-compatible agent, so the numbers sit in one place regardless of tool. It also tracks token and cost budgets, but the focus is delivery, not spend.
 
 > A 3-point ticket used to mean two days of work. With an AI agent it might mean two hours and 100k tokens. Burnwise connects those two data points.
 
 ## What Burnwise does
 
-- [x] **Measure velocity** — committed vs completed story points, completion rate (estimate accuracy), and a rolling average per sprint.
-- [x] **Track efficiency** — AI effort (cost, tokens, agent time) per completed story point, trended over sprints.
-- [x] **Recommend sprint capacity** — an anomaly-aware, velocity-based estimate of how many points to commit next sprint.
-- [x] **Attribute work to tickets** — explicit ticket ID, session headers, git branch, prompt text, or commit message.
-- [x] **Drill into sessions & traces** — per-developer agent sessions with token/cost/time rollups and a timeline.
-- [x] **Sync issue trackers** — GitHub Issues, Jira, and GitLab Issues become sprints and tickets.
+- [x] **Measure velocity**: committed vs completed story points, completion rate (estimate accuracy), and a rolling average per sprint.
+- [x] **Track efficiency**: AI effort (cost, tokens, agent time) per completed story point, trended over sprints.
+- [x] **Recommend sprint capacity**: an anomaly-aware, velocity-based estimate of how many points to commit next sprint.
+- [x] **Attribute work to tickets** from an explicit ticket ID, session headers, git branch, prompt text, or commit message.
+- [x] **Drill into sessions & traces**: per-developer agent sessions with token/cost/time rollups and a timeline.
+- [x] **Sync issue trackers**: GitHub Issues, Jira, and GitLab Issues become sprints and tickets.
 - [x] **Track budgets and alerts** for tokens, cost, and CI spend per project and sprint.
 - [x] **Manage teams and roles** with personal API keys, workspace scoping, and encrypted secrets.
-- [x] **SSO with GitHub, Google, GitLab, and any OIDC provider** — or use email/password. Buttons appear only when configured.
-- [x] **First-run setup wizard** — no seed data; create your workspace and admin account on first visit.
+- [x] **SSO with GitHub, Google, GitLab, and any OIDC provider**, or use email/password. Buttons appear only when configured.
+- [x] **First-run setup wizard**: no seed data; create your workspace and admin account on first visit.
 - [x] **Self-host in one command** with Docker Compose.
 
 ## Works with your AI tools
@@ -44,7 +44,7 @@
 | **Any CLI tool** | CLI wrapper (`ats -- <command>`) | Session activity |
 
 The proxy speaks both the OpenAI (`/v1/chat/completions`) and Anthropic
-(`/v1/messages`) wire formats — including streamed responses — and auto-detects
+(`/v1/messages`) wire formats, including streamed responses, and auto-detects
 which one each request uses, so one proxy fronts every OpenAI- or
 Anthropic-compatible tool. For LLMs that can't be proxied (Bedrock, Vertex),
 forward the cloud's native invocation logs to the cloud-log ingest endpoint.
@@ -226,10 +226,10 @@ Node.js 22 · TypeScript 6 · Fastify 5 · Prisma 7 · PostgreSQL · React 19 ·
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | ✅ | PostgreSQL connection string |
-| `JWT_SECRET` | ✅ | Secret used to sign auth tokens — use a long random string in production |
+| `JWT_SECRET` | ✅ | Secret used to sign auth tokens. Use a long random string in production |
 | `JWT_EXPIRY` | | Token lifetime (default: `7d`) |
 | `INGEST_API_KEY` | ✅ | Shared fallback ingest key. Prefer per-developer personal keys (`bw_sk_...`) from Settings → API Keys so events bind to the real user |
-| `BURNWISE_ENCRYPTION_KEY` | | 32-byte hex key to encrypt secrets at rest (integration tokens, API-key secrets). Derived from `JWT_SECRET` if unset — set explicitly in production |
+| `BURNWISE_ENCRYPTION_KEY` | | 32-byte hex key to encrypt secrets at rest (integration tokens, API-key secrets). Derived from `JWT_SECRET` if unset; set explicitly in production |
 | `CI_WEBHOOK_SECRET` | | Shared secret to verify inbound CI webhooks (GitHub HMAC / GitLab token / generic bearer). Verification is skipped with a warning if unset |
 | `PORT` | | Server port (default: `3000`) |
 | `VITE_API_URL` | | URL the browser uses to reach the server (default: `http://localhost:3000`) |
@@ -261,7 +261,7 @@ npm run e2e:ui --workspace=apps/web
 
 ### First run (local dev)
 
-After `npm run dev` starts the server and web app, open http://localhost:5173. The **setup wizard** prompts you to create a workspace name and admin account. No seed data is loaded — connect an issue tracker on the **Integrations** page to import real sprints and tickets, then bind agent work to a ticket (see [Connect your AI workflow](#connect-your-ai-workflow)).
+After `npm run dev` starts the server and web app, open http://localhost:5173. The **setup wizard** prompts you to create a workspace name and admin account. No seed data is loaded. Connect an issue tracker on the **Integrations** page to import real sprints and tickets, then bind agent work to a ticket (see [Connect your AI workflow](#connect-your-ai-workflow)).
 
 ## Contributing
 
@@ -273,4 +273,4 @@ To report a security vulnerability, please see [SECURITY.md](SECURITY.md).
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+Apache 2.0. See [LICENSE](LICENSE).

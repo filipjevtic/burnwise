@@ -26,7 +26,7 @@ docker compose up -d
 open http://localhost:8080
 ```
 
-On first visit, the **setup wizard** will appear. Enter your workspace name, email, and password to create the admin account. The database starts empty — connect an issue tracker on the **Integrations** page to import real sprints and tickets, then bind agent work to a ticket (see [INTEGRATIONS.md](INTEGRATIONS.md)).
+On first visit, the **setup wizard** will appear. Enter your workspace name, email, and password to create the admin account. The database starts empty. Connect an issue tracker on the **Integrations** page to import real sprints and tickets, then bind agent work to a ticket (see [INTEGRATIONS.md](INTEGRATIONS.md)).
 
 ## Option 2: External PostgreSQL
 
@@ -41,7 +41,7 @@ npm run start --workspace=apps/server
 
 ## SSO / OAuth
 
-Burnwise supports GitHub, Google, and GitLab OAuth plus generic OIDC out of the box. All are optional — email/password always works. SSO buttons appear on the login page only when a provider is configured.
+Burnwise supports GitHub, Google, and GitLab OAuth plus generic OIDC out of the box. All are optional; email/password always works. SSO buttons appear on the login page only when a provider is configured.
 
 ### GitHub OAuth
 
@@ -96,7 +96,7 @@ The server fetches the OIDC discovery document (`/.well-known/openid-configurati
 
 SSO users are automatically created on first sign-in with the `member` role. Promote them to admin via **Settings → Team** after they sign in.
 
-You can mix providers: for example, let developers sign in with **GitLab** while admins use **Google** and the security team uses **Keycloak via OIDC** — all are enabled independently and email/password remains available as a fallback.
+You can mix providers: for example, let developers sign in with **GitLab** while admins use **Google** and the security team uses **Keycloak via OIDC**: all are enabled independently and email/password remains available as a fallback.
 
 ## API keys for collectors
 
@@ -107,21 +107,21 @@ Collectors (proxy, CLI, MCP, IDE) authenticate to the ingest API. There are two 
 
 ## Secrets at rest
 
-- **`BURNWISE_ENCRYPTION_KEY`** — a 32-byte hex value used to encrypt sensitive data at rest (issue-tracker API tokens, API-key secrets) with AES-GCM. If unset, the server derives a key from `JWT_SECRET` (acceptable for dev). **Set this explicitly in production**, and note that rotating it invalidates previously encrypted secrets.
+- **`BURNWISE_ENCRYPTION_KEY`**: a 32-byte hex value used to encrypt sensitive data at rest (issue-tracker API tokens, API-key secrets) with AES-GCM. If unset, the server derives a key from `JWT_SECRET` (acceptable for dev). **Set this explicitly in production**, and note that rotating it invalidates previously encrypted secrets.
   ```bash
   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
   ```
-- **`CI_WEBHOOK_SECRET`** — shared secret used to verify inbound CI webhooks (GitHub HMAC, GitLab token, or generic bearer). In production (`NODE_ENV=production`) the CI webhook endpoint **rejects all requests until this is set** (fail closed), so an unauthenticated caller cannot inject `ci.run` events. Outside production, verification is skipped with a logged warning for local development.
+- **`CI_WEBHOOK_SECRET`**: shared secret used to verify inbound CI webhooks (GitHub HMAC, GitLab token, or generic bearer). In production (`NODE_ENV=production`) the CI webhook endpoint **rejects all requests until this is set** (fail closed), so an unauthenticated caller cannot inject `ci.run` events. Outside production, verification is skipped with a logged warning for local development.
 
 ### Rate limiting
 
 The server applies an in-memory, per-IP rate limit to every route. Health checks are exempt. Tune via environment variables (all optional):
 
-- **`RATE_LIMIT_DISABLED`** — set to `true` to turn limiting off (e.g. when you rate-limit at your gateway). Default: enabled.
-- **`RATE_LIMIT_MAX`** — global requests allowed per window. Default: `300`.
-- **`RATE_LIMIT_WINDOW`** — the window, e.g. `1 minute`, `15 seconds`. Default: `1 minute`.
-- **`RATE_LIMIT_AUTH_MAX`** — tighter limit for `/api/v1/auth/login` and `/api/v1/auth/setup` to slow credential stuffing. Default: `10`.
-- **`RATE_LIMIT_INGEST_MAX`** — higher ceiling for `/api/v1/events/ingest` (high-volume collector traffic). Default: `600`.
+- **`RATE_LIMIT_DISABLED`**: set to `true` to turn limiting off (e.g. when you rate-limit at your gateway). Default: enabled.
+- **`RATE_LIMIT_MAX`**: global requests allowed per window. Default: `300`.
+- **`RATE_LIMIT_WINDOW`**: the window, e.g. `1 minute`, `15 seconds`. Default: `1 minute`.
+- **`RATE_LIMIT_AUTH_MAX`**: tighter limit for `/api/v1/auth/login` and `/api/v1/auth/setup` to slow credential stuffing. Default: `10`.
+- **`RATE_LIMIT_INGEST_MAX`**: higher ceiling for `/api/v1/events/ingest` (high-volume collector traffic). Default: `600`.
 
 The limiter is per-instance. For multi-instance deployments, front it with a shared store (e.g. Redis) or rely on your load balancer/gateway.
 
@@ -139,7 +139,7 @@ access is not possible.
   a project (team, settings, integrations, invites) requires `admin+`. Workspace
   admins bypass project membership; ordinary workspace members default to
   `viewer` so existing dashboards keep working.
-- **`MULTI_WORKSPACE_ENABLED`** — leave `false` (default). It is a forward-looking
+- **`MULTI_WORKSPACE_ENABLED`**: leave `false` (default). It is a forward-looking
   flag; the additional-workspace creation path is not yet implemented, and the
   data model is already workspace-scoped so enabling it later is config-only.
 
