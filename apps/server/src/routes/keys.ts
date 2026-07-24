@@ -3,6 +3,7 @@ import { getPrisma } from "../db.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace } from "../middleware/scope.js";
 import { createApiKey } from "../services/apikey.js";
+import { recordAudit } from "../services/audit.js";
 
 export async function registerKeyRoutes(
   app: FastifyInstance,
@@ -62,6 +63,14 @@ export async function registerKeyRoutes(
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
     });
 
+    await recordAudit(prisma, {
+      workspaceId,
+      actorUserId: userId,
+      action: "apikey.create",
+      targetType: "apikey",
+      targetId: created.id,
+      metadata: { scope: body.scope ?? "workspace", projectId: body.projectId ?? null, note: body.note ?? null },
+    });
     return reply.status(201).send(created);
   });
 
@@ -75,6 +84,14 @@ export async function registerKeyRoutes(
     await prisma.apiKey.update({
       where: { id: key.id },
       data: { isActive: false, revokedAt: new Date() },
+    });
+    await recordAudit(prisma, {
+      workspaceId,
+      actorUserId: userId,
+      action: "apikey.revoke",
+      targetType: "apikey",
+      targetId: key.id,
+      metadata: { publicKey: key.publicKey },
     });
     return { success: true };
   });

@@ -1,9 +1,10 @@
-import type { FastifyInstance, FastifyPluginOptions } from "fastify";
+import type { FastifyInstance, FastifyPluginOptions, FastifyRequest } from "fastify";
 import { getPrisma } from "../db.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { requireProjectRole } from "../middleware/rbac.js";
 import { encryptSecret } from "../lib/crypto.js";
 import { assertSafeIntegrationUrl, SsrfError } from "../lib/ssrf.js";
+import { recordAudit } from "../services/audit.js";
 
 // Event types a subscription may filter on. Kept in sync with the ingest schema.
 const EVENT_TYPES = ["llm.request", "llm.response", "trace.span", "session.activity", "ci.run"];
@@ -79,6 +80,15 @@ export async function registerWebhookRoutes(
         active: active ?? true,
       },
     });
+    const actor = (request as FastifyRequest & { user: AuthPayload }).user;
+    await recordAudit(prisma, {
+      workspaceId: actor.workspaceId,
+      actorUserId: actor.userId,
+      action: "webhook.create",
+      targetType: "webhook",
+      targetId: created.id,
+      metadata: { projectId, url, eventTypes, hasSecret: Boolean(created.secret) },
+    });
     return reply.status(201).send({ subscription: toPublic(created) });
   });
 
@@ -115,6 +125,20 @@ export async function registerWebhookRoutes(
     if (active !== undefined) data.active = active;
 
     const updated = await prisma.webhookSubscription.update({ where: { id: existing.id }, data });
+    const actor = (request as FastifyRequest & { user: AuthPayload }).user;
+    await recordAudit(prisma, {
+      workspaceId: actor.workspaceId,
+      actorUserId: actor.userId,
+      action: "webhook.update",
+      targetType: "webhook",
+      targetId: updated.id,
+      // Record which fields changed, never the secret value.
+      metadata: {
+        projectId: updated.projectId,
+        changed: Object.keys(data),
+        active: updated.active,
+      },
+    });
     return { subscription: toPublic(updated) };
   });
 
@@ -124,6 +148,15 @@ export async function registerWebhookRoutes(
     if (!existing) return reply.status(404).send({ error: "Subscription not found" });
     if (!(await requireProjectRole(prisma, request, reply, existing.projectId, "admin"))) return;
     await prisma.webhookSubscription.delete({ where: { id: existing.id } });
+    const actor = (request as FastifyRequest & { user: AuthPayload }).user;
+    await recordAudit(prisma, {
+      workspaceId: actor.workspaceId,
+      actorUserId: actor.userId,
+      action: "webhook.delete",
+      targetType: "webhook",
+      targetId: existing.id,
+      metadata: { projectId: existing.projectId, url: existing.url },
+    });
     return { ok: true };
   });
 }
