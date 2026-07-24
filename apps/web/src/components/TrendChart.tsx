@@ -15,12 +15,10 @@ export function TrendChart({
   data,
   height = 160,
   format = (v) => v.toLocaleString(),
-  color = "var(--primary)",
 }: {
   data: TrendChartPoint[];
   height?: number;
   format?: (value: number) => string;
-  color?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
 
@@ -54,7 +52,7 @@ export function TrendChart({
               width={barWidth}
               height={Math.max(barHeight, d.value > 0 ? 1 : 0)}
               rx={radius}
-              fill={color}
+              fill="var(--primary)"
               opacity={hover === null || hover === i ? 1 : 0.4}
               onMouseEnter={() => setHover(i)}
               onMouseLeave={() => setHover(null)}
