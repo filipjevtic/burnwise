@@ -58,6 +58,45 @@ export function SettingsPage({
   useEffect(() => {
     if (workspace) setTraceViewerUrl(workspace.traceViewerUrlTemplate ?? "");
   }, [workspace]);
+
+  // CI webhook config (#183): per-project secret + pinned provider (admin only).
+  const [ciConfigured, setCiConfigured] = useState(false);
+  const [ciSecret, setCiSecret] = useState("");
+  const [ciProvider, setCiProvider] = useState("");
+  const [savingCi, setSavingCi] = useState(false);
+  const [ciError, setCiError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!projectId || !token || !isAdmin) return;
+    fetch(`${API_URL}/api/v1/ci/config/${projectId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        setCiConfigured(Boolean(data.configured));
+        setCiProvider(data.provider ?? "");
+      })
+      .catch(() => {});
+  }, [projectId, token, isAdmin]);
+
+  async function saveCiConfig(body: { secret?: string | null; provider?: string | null }) {
+    setSavingCi(true);
+    setCiError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/ci/config/${projectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setCiConfigured(Boolean(data.configured));
+      setCiProvider(data.provider ?? "");
+      setCiSecret("");
+    } catch (err) {
+      setCiError(err instanceof Error ? err.message : "Failed to save CI webhook config");
+    } finally {
+      setSavingCi(false);
+    }
+  }
   const [memberEmail, setMemberEmail] = useState("");
   const [memberDisplayName, setMemberDisplayName] = useState("");
   const [memberRole, setMemberRole] = useState<TeamRole>("member");
@@ -272,6 +311,72 @@ export function SettingsPage({
                 {saving ? "Saving..." : "Save budget"}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "budget" && (
+        <Card className="mt-6 max-w-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-muted-foreground" />
+              CI webhook
+            </CardTitle>
+            <CardDescription>
+              A per-project secret to authenticate CI cost webhooks, so a leaked secret can't forge
+              events into other projects. Pin a provider to restrict verification to its method.
+              {ciConfigured ? " A secret is currently set." : " No secret set yet."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {ciError && <ErrorNote>{ciError}</ErrorNote>}
+            <div className="space-y-4">
+              <div className="grid gap-1.5">
+                <Label htmlFor="ciSecret">{ciConfigured ? "Replace secret" : "Secret"}</Label>
+                <Input
+                  id="ciSecret"
+                  type="password"
+                  autoComplete="new-password"
+                  value={ciSecret}
+                  disabled={!isAdmin}
+                  placeholder={ciConfigured ? "•••••••• (leave blank to keep)" : "a long random string"}
+                  onChange={(e) => setCiSecret(e.target.value)}
+                />
+              </div>
+              <div className="grid max-w-xs gap-1.5">
+                <Label htmlFor="ciProvider">Provider (verification method)</Label>
+                <Select
+                  id="ciProvider"
+                  value={ciProvider}
+                  disabled={!isAdmin}
+                  onChange={(e) => setCiProvider(e.target.value)}
+                >
+                  <option value="">Any (accept any supported header)</option>
+                  <option value="github">GitHub (HMAC signature)</option>
+                  <option value="gitlab">GitLab (token)</option>
+                  <option value="generic">Generic (bearer token)</option>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  disabled={!isAdmin || savingCi}
+                  onClick={() => saveCiConfig({ ...(ciSecret ? { secret: ciSecret } : {}), provider: ciProvider || null })}
+                >
+                  {savingCi ? "Saving…" : "Save"}
+                </Button>
+                {ciConfigured && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!isAdmin || savingCi}
+                    onClick={() => saveCiConfig({ secret: null, provider: null })}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
