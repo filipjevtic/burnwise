@@ -60,6 +60,7 @@ model Project {
   apiKeys     ApiKey[]
   sessions    Session[]
   webhooks    WebhookSubscription[]
+  rejectionRules RejectionRule[]
 
   @@unique([workspaceId, slug])
 }
@@ -81,6 +82,22 @@ model WebhookSubscription {
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, active])
+}
+
+// Auto-reject rule for the manual trace-resolution queue (#24 follow-up): events
+// matching a rule are hidden from /unresolved so recurring noise (a bot user, a
+// non-work source) needn't be rejected by hand. Non-destructive — it filters the
+// view rather than mutating events, so deleting a rule un-hides them.
+model RejectionRule {
+  id        String   @id @default(uuid())
+  projectId String
+  field     String   // "source" | "userId"
+  value     String
+  createdAt DateTime @default(now())
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 model User {

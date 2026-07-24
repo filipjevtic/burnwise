@@ -6,8 +6,10 @@ import { Skeleton } from "../components/ui/skeleton.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 import { PageHeader, EmptyState, ErrorNote } from "../components/ui/page.js";
 import { useUnresolved } from "../hooks/use-unresolved.js";
+import { useRejectionRules } from "../hooks/use-rejection-rules.js";
 import { useAuth } from "../context/auth.js";
-import { Inbox } from "lucide-react";
+import { Input } from "../components/ui/input.js";
+import { Inbox, X } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -33,11 +35,14 @@ function eventHint(payload: Record<string, unknown> | null, metadata: Record<str
 
 export function UnresolvedPage({ projectId }: { projectId: string }) {
   const { token } = useAuth();
-  const { events, total, loading, error, resolve, reject } = useUnresolved(projectId);
+  const { events, total, loading, error, resolve, reject, refresh } = useUnresolved(projectId);
+  const { rules, error: rulesError, addRule, deleteRule } = useRejectionRules(projectId);
   const [tickets, setTickets] = useState<TicketOption[]>([]);
   const [choice, setChoice] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [ruleField, setRuleField] = useState("source");
+  const [ruleValue, setRuleValue] = useState("");
 
   useEffect(() => {
     if (!projectId || !token) return;
@@ -144,6 +149,62 @@ export function UnresolvedPage({ projectId }: { projectId: string }) {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardContent className="space-y-3 pt-6">
+          <div>
+            <h3 className="text-sm font-medium">Rejection rules</h3>
+            <p className="text-xs text-muted-foreground">
+              Auto-hide recurring noise (a bot user, a non-work source) from the queue. Rules filter the view; they don't delete events, so removing a rule brings them back.
+            </p>
+          </div>
+          {rulesError && <ErrorNote>{rulesError}</ErrorNote>}
+          {rules.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {rules.map((r) => (
+                <span key={r.id} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs">
+                  <span className="text-muted-foreground">{r.field}</span>
+                  <span className="font-medium">{r.value}</span>
+                  <button
+                    aria-label={`Delete rule ${r.field}=${r.value}`}
+                    className="ml-0.5 text-muted-foreground hover:text-foreground"
+                    onClick={async () => {
+                      await deleteRule(r.id);
+                      refresh();
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Select value={ruleField} onChange={(e) => setRuleField(e.target.value)} className="w-32">
+              <option value="source">source</option>
+              <option value="userId">userId</option>
+            </Select>
+            <Input
+              value={ruleValue}
+              placeholder={ruleField === "source" ? "e.g. cli" : "user id"}
+              onChange={(e) => setRuleValue(e.target.value)}
+              className="max-w-xs"
+            />
+            <Button
+              size="sm"
+              disabled={!ruleValue.trim()}
+              onClick={async () => {
+                if (await addRule(ruleField, ruleValue.trim())) {
+                  setRuleValue("");
+                  refresh();
+                }
+              }}
+            >
+              Add rule
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

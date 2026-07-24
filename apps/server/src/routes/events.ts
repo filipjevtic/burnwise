@@ -9,6 +9,8 @@ import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace, assertTicketInWorkspace } from "../middleware/scope.js";
 import { verifyApiKey } from "../services/apikey.js";
 import { recordAudit } from "../services/audit.js";
+import { requireProjectRole } from "../middleware/rbac.js";
+import { buildRuleExclusion, isRejectionRuleField, REJECTION_RULE_FIELDS } from "../services/rejection-rules.js";
 import { parsePagination, buildPaginationMeta } from "../lib/pagination.js";
 
 export async function registerEventRoutes(
@@ -114,10 +116,15 @@ export async function registerEventRoutes(
     if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
 
     const pagination = parsePagination(request.query);
-    const where = {
+    // Hide events covered by an active rejection rule (#24 follow-up). Rules
+    // filter the view non-destructively — the events keep associationMethod null.
+    const rules = await prisma.rejectionRule.findMany({ where: { projectId }, select: { field: true, value: true } });
+    const ruleExclusion = buildRuleExclusion(rules);
+    const where: Prisma.EventWhereInput = {
       projectId,
       ticketId: null,
       OR: [{ associationMethod: null }, { associationMethod: { not: "rejected" } }],
+      ...(ruleExclusion.length ? { NOT: { OR: ruleExclusion } } : {}),
     };
     const [events, total] = await Promise.all([
       prisma.event.findMany({
@@ -216,4 +223,48 @@ export async function registerEventRoutes(
       return { ok: true, eventId: request.params.eventId };
     }
   );
+
+  // Rejection rules (#24 follow-up): auto-hide recurring noise from the
+  // unresolved queue. List is available to any workspace member; mutations are
+  // project-admin only.
+  app.get<{ Querystring: { projectId?: string } }>("/rejection-rules", { preHandler: requireAuth }, async (request, reply) => {
+    const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
+    const { projectId } = request.query;
+    if (!projectId) return reply.status(400).send({ error: "projectId is required" });
+    if (!(await assertProjectInWorkspace(prisma, reply, projectId, workspaceId))) return;
+    const rules = await prisma.rejectionRule.findMany({
+      where: { projectId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, field: true, value: true, createdAt: true },
+    });
+    return { rules };
+  });
+
+  app.post<{ Body: { projectId?: string; field?: string; value?: string } }>(
+    "/rejection-rules",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const { projectId, field, value } = request.body ?? {};
+      if (!projectId || !field || !value) {
+        return reply.status(400).send({ error: "projectId, field, and value are required" });
+      }
+      if (!isRejectionRuleField(field)) {
+        return reply.status(400).send({ error: `field must be one of: ${REJECTION_RULE_FIELDS.join(", ")}` });
+      }
+      if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
+      const rule = await prisma.rejectionRule.create({
+        data: { projectId, field, value },
+        select: { id: true, field: true, value: true, createdAt: true },
+      });
+      return reply.status(201).send({ rule });
+    }
+  );
+
+  app.delete<{ Params: { id: string } }>("/rejection-rules/:id", { preHandler: requireAuth }, async (request, reply) => {
+    const rule = await prisma.rejectionRule.findUnique({ where: { id: request.params.id } });
+    if (!rule) return reply.status(404).send({ error: "Rule not found" });
+    if (!(await requireProjectRole(prisma, request, reply, rule.projectId, "admin"))) return;
+    await prisma.rejectionRule.delete({ where: { id: rule.id } });
+    return { ok: true };
+  });
 }
