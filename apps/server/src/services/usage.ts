@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { rollupEvents, type Rollup } from "./rollup.js";
+import type { Rollup } from "./rollup.js";
+import { dbRollup } from "./aggregate-db.js";
 
 /**
  * Current project-wide usage totals across ALL events — not just events on
@@ -8,14 +9,12 @@ import { rollupEvents, type Rollup } from "./rollup.js";
  * paths so they always agree (previously the forecast used done-only historical
  * totals, which disagreed with the alerts banner — see issue #10).
  *
- * NOTE: loads all project events into memory to roll them up (token/cost live in
- * event payload JSON, so this cannot be a SQL SUM today). Consistent with the
- * existing alerts path; the aggregation-scalability follow-up is tracked in #176.
+ * Aggregated in Postgres over the denormalized metric columns (#176) so this
+ * scales to large projects without loading event payloads into Node.
  */
 export async function getProjectUsageTotals(
   prisma: PrismaClient,
   projectId: string
 ): Promise<Rollup> {
-  const events = await prisma.event.findMany({ where: { projectId } });
-  return rollupEvents(events);
+  return dbRollup(prisma, { projectId });
 }

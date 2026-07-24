@@ -2,7 +2,8 @@ import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyRepl
 import { getPrisma } from "../db.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace, assertSprintInWorkspace } from "../middleware/scope.js";
-import { rollupEvents } from "../services/rollup.js";
+import { emptyRollup } from "../services/rollup.js";
+import { dbRollupByField } from "../services/aggregate-db.js";
 
 export async function registerSprintRoutes(
   app: FastifyInstance,
@@ -26,9 +27,7 @@ export async function registerSprintRoutes(
     const sprint = await prisma.sprint.findUnique({
       where: { id: request.params.sprintId },
       include: {
-        tickets: {
-          include: { events: true },
-        },
+        tickets: { select: { id: true, externalId: true, title: true } },
       },
     });
 
@@ -36,17 +35,27 @@ export async function registerSprintRoutes(
       return reply.status(404).send({ error: "Sprint not found" });
     }
 
+    // Roll up all tickets' events in a single grouped DB query (#176) instead of
+    // loading every event for every ticket in the sprint.
+    const ticketIds = sprint.tickets.map((t) => t.id);
+    const rollups =
+      ticketIds.length > 0
+        ? await dbRollupByField(prisma, { ticketId: { in: ticketIds } }, "ticketId")
+        : new Map();
+
     let totalTokens = 0;
     let totalCost = 0;
     let totalDuration = 0;
+    let totalEvents = 0;
     const ticketSummaries = [];
 
     for (const ticket of sprint.tickets) {
-      const rollup = rollupEvents(ticket.events);
+      const rollup = rollups.get(ticket.id) ?? emptyRollup();
 
       totalTokens += rollup.tokens;
       totalCost += rollup.cost;
       totalDuration += rollup.durationSeconds;
+      totalEvents += rollup.eventCount;
 
       ticketSummaries.push({
         ticketId: ticket.id,
@@ -55,7 +64,7 @@ export async function registerSprintRoutes(
         tokens: rollup.tokens,
         cost: rollup.cost,
         durationSeconds: rollup.durationSeconds,
-        events: ticket.events.length,
+        events: rollup.eventCount,
       });
     }
 
@@ -72,7 +81,7 @@ export async function registerSprintRoutes(
         totalCost,
         totalDurationSeconds: totalDuration,
         ticketCount: sprint.tickets.length,
-        eventCount: sprint.tickets.reduce((sum: number, t: { events: unknown[] }) => sum + t.events.length, 0),
+        eventCount: totalEvents,
       },
       tickets: ticketSummaries,
     };
