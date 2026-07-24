@@ -1,6 +1,6 @@
 import * as React from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Gauge, Plug, Settings, Sun, Moon, Monitor, Menu, X, LogOut, Activity, TrendingUp, Layers, Inbox } from "lucide-react";
+import { LayoutDashboard, Gauge, Plug, Settings, Sun, Moon, Monitor, Menu, X, LogOut, Activity, TrendingUp, Layers, Inbox, ScrollText } from "lucide-react";
 import { Button } from "../ui/button.js";
 import { Select } from "../ui/select.js";
 import { useTheme } from "../../hooks/use-theme.js";
@@ -14,6 +14,7 @@ const nav = [
   { to: "/velocity", label: "Velocity", icon: TrendingUp },
   { to: "/forecast", label: "Forecast", icon: Gauge },
   { to: "/integrations", label: "Integrations", icon: Plug },
+  { to: "/audit", label: "Audit log", icon: ScrollText, adminOnly: true },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -24,9 +25,11 @@ function NavLinks({
   location: ReturnType<typeof useLocation>;
   onNavigate?: () => void;
 }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   return (
     <>
-      {nav.map((item) => {
+      {nav.filter((item) => !("adminOnly" in item && item.adminOnly) || isAdmin).map((item) => {
         const isActive = item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
         return (
           <NavLink

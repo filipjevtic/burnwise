@@ -9,6 +9,7 @@ import { DashboardPage } from "./pages/DashboardPage.js";
 import { PortfolioPage } from "./pages/PortfolioPage.js";
 import { SessionsPage } from "./pages/SessionsPage.js";
 import { UnresolvedPage } from "./pages/UnresolvedPage.js";
+import { AuditPage } from "./pages/AuditPage.js";
 import { VelocityPage } from "./pages/VelocityPage.js";
 import { ForecastPage } from "./pages/ForecastPage.js";
 import { IntegrationsPage } from "./pages/IntegrationsPage.js";
@@ -138,6 +139,7 @@ function AppRoutes() {
           element={<SessionsPage projectId={projectId} sprints={data.sprints} />}
         />
         <Route path="/unresolved" element={<UnresolvedPage projectId={projectId} />} />
+        <Route path="/audit" element={<AuditPage />} />
         <Route
           path="/velocity"
           element={<VelocityPage projectId={projectId} />}
