@@ -1,8 +1,9 @@
-import type { FastifyInstance, FastifyPluginOptions } from "fastify";
+import type { FastifyInstance, FastifyPluginOptions, FastifyRequest } from "fastify";
 import { listTeamMembers, addTeamMember, removeTeamMember, updateTeamMember, type TeamRole } from "../services/team.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { requireProjectRole } from "../middleware/rbac.js";
 import { getPrisma } from "../db.js";
+import { recordAudit } from "../services/audit.js";
 
 export async function registerTeamRoutes(
   app: FastifyInstance,
@@ -34,6 +35,15 @@ export async function registerTeamRoutes(
 
     try {
       const member = await addTeamMember({ projectId, email, displayName, role });
+      const actor = (request as FastifyRequest & { user: AuthPayload }).user;
+      await recordAudit(prisma, {
+        workspaceId: actor.workspaceId,
+        actorUserId: actor.userId,
+        action: "team.member_add",
+        targetType: "user",
+        targetId: member.userId,
+        metadata: { projectId, email, role },
+      });
       return { member };
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to add member";
@@ -53,6 +63,15 @@ export async function registerTeamRoutes(
 
     try {
       await updateTeamMember(projectId, userId, role);
+      const actor = (request as FastifyRequest & { user: AuthPayload }).user;
+      await recordAudit(prisma, {
+        workspaceId: actor.workspaceId,
+        actorUserId: actor.userId,
+        action: "team.role_change",
+        targetType: "user",
+        targetId: userId,
+        metadata: { projectId, role },
+      });
       return { success: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to update member";
@@ -67,6 +86,15 @@ export async function registerTeamRoutes(
     if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
     try {
       await removeTeamMember(projectId, userId);
+      const actor = (request as FastifyRequest & { user: AuthPayload }).user;
+      await recordAudit(prisma, {
+        workspaceId: actor.workspaceId,
+        actorUserId: actor.userId,
+        action: "team.member_remove",
+        targetType: "user",
+        targetId: userId,
+        metadata: { projectId },
+      });
       return { success: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to remove member";
