@@ -276,9 +276,32 @@ via `InvokeModel` `requestMetadata`, on Vertex via the log entry `labels`.
 
 ## CI/CD cost webhooks
 
-Send build cost/duration to Burnwise from your pipeline. Configure
-`CI_WEBHOOK_SECRET` on the server and sign requests (GitHub HMAC, GitLab token,
-or generic bearer). CI runs roll up into per-sprint cost and efficiency. See
+Send build cost/duration to Burnwise from your pipeline. Sign requests with
+GitHub HMAC (`X-Hub-Signature-256`), a GitLab token (`X-Gitlab-Token`), or a
+generic bearer (`Authorization: Bearer` / `X-Burnwise-Webhook-Token`). CI runs
+roll up into per-sprint cost and efficiency. GitHub cost is estimated by the
+actual runner OS (Linux/Windows/macOS) from the payload; generic payloads may
+set `runner`.
+
+**Per-project secrets (recommended, #183).** Rather than one global secret for
+every project, give each project its own — a leak then can't forge events into
+another project. Project admins set it via the API (a Settings UI is planned):
+
+```bash
+# Set the secret and pin the provider (verification is then restricted to it).
+curl -X PUT $ATS_SERVER_URL/api/v1/ci/config/<projectId> \
+  -H "Authorization: Bearer <admin-jwt>" -H 'Content-Type: application/json' \
+  -d '{"secret":"<random-secret>","provider":"github"}'
+
+# Inspect (never returns the secret); clear with {"secret":null,"provider":null}.
+curl $ATS_SERVER_URL/api/v1/ci/config/<projectId> -H "Authorization: Bearer <admin-jwt>"
+```
+
+The secret is encrypted at rest. Pinning a `provider` means only that method is
+accepted, so a caller can't downgrade to a weaker one by sending a different
+header. The global `CI_WEBHOOK_SECRET` remains a fallback for projects without
+their own; when neither is set, webhooks are rejected in production and skipped
+(with a warning) in development. See
 [SELFHOST.md](SELFHOST.md#secrets-at-rest) for secret configuration.
 
 ## Choosing an auth method

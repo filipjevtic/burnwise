@@ -73,4 +73,50 @@ test("verifyCiWebhook", async (t) => {
       assert.equal(verifyCiWebhook(req({})).ok, false);
     });
   });
+
+  await t.test("per-project secret overrides the global secret (#183)", () => {
+    withConfig("global-secret", "production", () => {
+      // The project's own token verifies; the global one no longer does.
+      assert.equal(verifyCiWebhook(req({ "x-gitlab-token": "proj-secret" }), { secret: "proj-secret" }).ok, true);
+      assert.equal(verifyCiWebhook(req({ "x-gitlab-token": "global-secret" }), { secret: "proj-secret" }).ok, false);
+    });
+  });
+
+  await t.test("per-project secret works even when no global secret is set", () => {
+    withConfig("", "production", () => {
+      assert.equal(verifyCiWebhook(req({ "x-gitlab-token": "proj" }), { secret: "proj" }).ok, true);
+      // Still fail-closed when neither is configured.
+      assert.equal(verifyCiWebhook(req({ "x-gitlab-token": "x" }), { secret: "" }).ok, false);
+    });
+  });
+
+  await t.test("pinned provider rejects a different (weaker) method (#183)", () => {
+    withConfig("", "production", () => {
+      // Project pinned to github: a valid gitlab token must NOT be accepted.
+      assert.equal(
+        verifyCiWebhook(req({ "x-gitlab-token": "proj" }), { secret: "proj", provider: "github" }).ok,
+        false
+      );
+      // And the correct github signature IS accepted under the pin.
+      const raw = JSON.stringify({ a: 1 });
+      const sig = "sha256=" + createHmac("sha256", "proj").update(raw).digest("hex");
+      assert.equal(
+        verifyCiWebhook(req({ "x-hub-signature-256": sig }, raw), { secret: "proj", provider: "github" }).ok,
+        true
+      );
+    });
+  });
+
+  await t.test("pinned gitlab ignores a github header and requires its token", () => {
+    withConfig("", "production", () => {
+      assert.equal(
+        verifyCiWebhook(req({ "x-hub-signature-256": "sha256=whatever" }), { secret: "proj", provider: "gitlab" }).ok,
+        false
+      );
+      assert.equal(
+        verifyCiWebhook(req({ "x-gitlab-token": "proj" }), { secret: "proj", provider: "gitlab" }).ok,
+        true
+      );
+    });
+  });
 });
