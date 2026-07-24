@@ -64,11 +64,12 @@ export interface VelocitySummary {
   capacity: CapacityRecommendation;
 }
 
-const DONE_STATUSES = new Set(["done", "closed", "completed", "resolved"]);
+export const DONE_STATUSES = ["done", "closed", "completed", "resolved"];
+const DONE_STATUS_SET = new Set(DONE_STATUSES);
 
 /** A ticket counts as completed when its status is a terminal/done state. */
 export function isCompleted(status: string): boolean {
-  return DONE_STATUSES.has(status.trim().toLowerCase());
+  return DONE_STATUS_SET.has(status.trim().toLowerCase());
 }
 
 function toIso(value: Date | string | null | undefined): string | null {
@@ -171,6 +172,82 @@ export function recommendCapacity(completedHistory: number[]): CapacityRecommend
     high: round(mean + stddev),
     sampleSize: sample.length,
     confidence,
+  };
+}
+
+export interface BacklogTicketInput {
+  id: string;
+  externalId?: string | null;
+  title?: string | null;
+  storyPoints: number | null;
+}
+
+export interface CommitTicket {
+  id: string;
+  externalId: string | null;
+  title: string | null;
+  storyPoints: number;
+}
+
+export interface SprintCommitRecommendation {
+  /** Capacity target the commit is planned against (capacity.recommendedPoints). */
+  targetPoints: number;
+  /** Planning band carried through from the capacity recommendation. */
+  low: number;
+  high: number;
+  confidence: "low" | "medium" | "high";
+  /** Sum of the selected tickets' points (≤ targetPoints). */
+  committedPoints: number;
+  selected: CommitTicket[];
+  /** Tickets that didn't make the cut, each with why. */
+  deferred: Array<CommitTicket & { reason: "over-capacity" | "unestimated" }>;
+}
+
+/**
+ * Recommend a committable set for the next sprint (#198): fill the capacity
+ * target with backlog tickets in the given order (caller sorts by priority),
+ * turning the capacity estimate into an actual plan ("commit ~24 pts; these 7
+ * tickets fit").
+ *
+ * Greedy fill: include a ticket while the running total stays within the target;
+ * a ticket that would overflow is deferred (a too-big one is a signal to split)
+ * and filling continues with the rest. Unestimated tickets can't be planned, so
+ * they are deferred and surfaced separately.
+ */
+export function recommendSprintCommit(
+  capacity: CapacityRecommendation,
+  backlog: BacklogTicketInput[]
+): SprintCommitRecommendation {
+  const target = capacity.recommendedPoints;
+  const selected: CommitTicket[] = [];
+  const deferred: SprintCommitRecommendation["deferred"] = [];
+  let committedPoints = 0;
+
+  for (const ticket of backlog) {
+    const base: CommitTicket = {
+      id: ticket.id,
+      externalId: ticket.externalId ?? null,
+      title: ticket.title ?? null,
+      storyPoints: ticket.storyPoints ?? 0,
+    };
+    if (ticket.storyPoints == null) {
+      deferred.push({ ...base, reason: "unestimated" });
+    } else if (committedPoints + ticket.storyPoints <= target) {
+      selected.push(base);
+      committedPoints += ticket.storyPoints;
+    } else {
+      deferred.push({ ...base, reason: "over-capacity" });
+    }
+  }
+
+  return {
+    targetPoints: target,
+    low: capacity.low,
+    high: capacity.high,
+    confidence: capacity.confidence,
+    committedPoints,
+    selected,
+    deferred,
   };
 }
 
