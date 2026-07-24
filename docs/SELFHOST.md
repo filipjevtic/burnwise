@@ -39,6 +39,30 @@ npm run db:migrate:deploy --workspace=apps/server
 npm run start --workspace=apps/server
 ```
 
+## Local-only mode
+
+Run the full stack on your own machine with a hard guarantee that **no data
+leaves it** (#23). Burnwise never phones home — it only talks to the
+integrations and webhooks you configure — so "local-only" is about enforcing
+that guarantee. Set `LOCAL_ONLY=true`:
+
+```bash
+LOCAL_ONLY=true docker compose up
+```
+
+With it on:
+
+- All outbound egress is blocked — issue-tracker sync (Jira/GitHub/GitLab) and
+  outbound webhook delivery both fail closed.
+- SSO is disabled (no identity is sent to an external IdP); sign in with
+  email/password.
+
+Everything else — dashboard, ingest, the CLI/proxy/MCP collectors pointed at
+`http://localhost:3000` — works normally. Data lives in the Postgres that Docker
+Compose starts locally; there is no separate cloud service. (There is no SQLite
+option: the stack bundles Postgres, so a single `docker compose up` already
+needs no external database.)
+
 ## SSO / OAuth
 
 Burnwise supports GitHub, Google, and GitLab OAuth plus generic OIDC out of the box. All are optional; email/password always works. SSO buttons appear on the login page only when a provider is configured.

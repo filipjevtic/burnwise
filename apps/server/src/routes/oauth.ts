@@ -175,6 +175,8 @@ export async function registerOAuthRoutes(
   app.get<{ Params: { provider: string } }>(
     "/:provider",
     async (request, reply) => {
+      // Local-only mode (#23): SSO is disabled — no identity leaves the machine.
+      if (config.localOnly) return reply.status(404).send({ error: "SSO is disabled in local-only mode" });
       const { provider } = request.params;
       // OIDC discovery may have failed at boot (IdP down); retry lazily.
       if (provider === "oidc") await loadOIDCDiscovery();
@@ -214,6 +216,8 @@ export async function registerOAuthRoutes(
   app.get<{ Params: { provider: string }; Querystring: { code?: string; error?: string; state?: string } }>(
     "/:provider/callback",
     async (request, reply) => {
+      // Local-only mode (#23): SSO is disabled — never run token exchange.
+      if (config.localOnly) return reply.status(404).send({ error: "SSO is disabled in local-only mode" });
       const { provider } = request.params;
       const { code, error, state } = request.query;
       const frontendCallback = callbackUrl();

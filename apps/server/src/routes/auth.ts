@@ -17,6 +17,11 @@ export async function registerAuthRoutes(
   const prisma = await getPrisma();
 
   app.get("/providers", async (_request: FastifyRequest, reply: FastifyReply) => {
+    // Local-only mode (#23) disables SSO — logging in via a provider would send
+    // identity to an external IdP. The frontend hides the buttons accordingly.
+    if (config.localOnly) {
+      return reply.send({ github: false, google: false, gitlab: false, oidc: { enabled: false }, localOnly: true });
+    }
     return reply.send({
       github: !!config.oauth.github.clientId,
       google: !!config.oauth.google.clientId,
@@ -25,6 +30,7 @@ export async function registerAuthRoutes(
         enabled: !!(config.oidc.issuerUrl && config.oidc.clientId),
         name: config.oidc.displayName,
       },
+      localOnly: false,
     });
   });
 

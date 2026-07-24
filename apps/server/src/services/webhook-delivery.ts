@@ -12,6 +12,7 @@
 import { createHmac } from "crypto";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Event } from "@burnwise/schema";
+import { config } from "../config.js";
 import { decryptSecret } from "../lib/crypto.js";
 import { fetchWithTimeout } from "../lib/fetch-timeout.js";
 
@@ -106,6 +107,9 @@ export async function dispatchWebhooks(
   log: Logger = console
 ): Promise<void> {
   if (events.length === 0) return;
+  // Local-only mode (#23): no external egress. Skip entirely rather than let
+  // each delivery hit the fetch guard and retry pointlessly.
+  if (config.localOnly) return;
   const projectIds = [...new Set(events.map((e) => e.projectId))];
   const rows = await prisma.webhookSubscription.findMany({
     where: { projectId: { in: projectIds }, active: true },

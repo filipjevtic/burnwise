@@ -2,7 +2,8 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { fetchWithTimeout, FetchTimeoutError, DEFAULT_FETCH_TIMEOUT_MS } from "./fetch-timeout.js";
+import { fetchWithTimeout, FetchTimeoutError, LocalOnlyError, DEFAULT_FETCH_TIMEOUT_MS } from "./fetch-timeout.js";
+import { config } from "../config.js";
 
 let server: http.Server;
 let base: string;
@@ -45,5 +46,20 @@ describe("fetchWithTimeout", () => {
 
   it("exposes a sane default timeout", () => {
     assert.strictEqual(DEFAULT_FETCH_TIMEOUT_MS, 30_000);
+  });
+
+  it("blocks all outbound requests in local-only mode (#23)", async () => {
+    config.localOnly = true;
+    try {
+      await assert.rejects(
+        () => fetchWithTimeout(`${base}/fast`, {}, 2000),
+        (err: unknown) => err instanceof LocalOnlyError
+      );
+    } finally {
+      config.localOnly = false;
+    }
+    // Restored: normal requests work again once the flag is off.
+    const res = await fetchWithTimeout(`${base}/fast`, {}, 2000);
+    assert.strictEqual(res.status, 200);
   });
 });
