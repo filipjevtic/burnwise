@@ -166,6 +166,42 @@ capture is automatic and `report_usage` is not needed.
 > with the previous ticket. (Previously all reported tokens landed on the last
 > ticket; report often for the sharpest per-ticket breakdown.)
 
+### Zero-context reporting via a Claude Code hook (recommended)
+
+The MCP tools sit in the agent's context all session and each `report_usage`
+call spends round-trip tokens — reporting usage shouldn't itself cost meaningful
+AI usage (#209). The **hook** reports usage **out of band**: Claude Code runs it
+on the `Stop` event, it reads the session transcript and posts token usage to the
+ingest API directly, so reporting consumes **zero model context**. Build the MCP
+package (`npm run build --workspace=apps/mcp`), then add to your Claude Code
+settings:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node /path/to/burnwise/apps/mcp/dist/hook-cli.js" }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "ATS_SERVER_URL": "http://localhost:3000",
+    "ATS_API_KEY": "bw_sk_...",
+    "ATS_PROJECT_ID": "your-project-id"
+  }
+}
+```
+
+The hook is silent and non-blocking (it never disrupts the agent), delta-tracks
+per session so repeated fires don't double-count, and resolves the ticket from
+`$BURNWISE_TICKET`, a `.burnwise-ticket` file in the repo, or the git branch
+(`[A-Z]+-\d+`). Cost is backfilled server-side from the price table. With the
+hook enabled you don't need `report_usage`; keep the MCP server for `set_ticket`
+and feedback, or omit it entirely.
+
 ## VS Code extension (`apps/vscode`)
 
 Install the extension and set the active ticket via the command palette

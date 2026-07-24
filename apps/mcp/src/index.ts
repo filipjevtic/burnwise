@@ -28,89 +28,60 @@ const server = new Server(
   }
 );
 
+// Tool descriptions are kept terse on purpose: they sit in the agent's context
+// for the whole session, so every word is a fixed token cost (#209). For a
+// zero-context alternative that reports usage out of band, see the Claude Code
+// hook in hook-cli.ts (docs/INTEGRATIONS.md).
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
         name: "set_ticket",
-        description: "Set the current ticket ID for this session. All token usage will be associated with this ticket.",
+        description: "Bind the active ticket; usage is attributed to it until changed.",
         inputSchema: {
           type: "object",
           properties: {
-            ticketId: {
-              type: "string",
-              description: "Ticket ID, e.g. PROJ-123",
-            },
+            ticketId: { type: "string", description: "Ticket key, e.g. PROJ-123" },
           },
           required: ["ticketId"],
         },
       },
       {
         name: "get_ticket",
-        description: "Get the current ticket ID associated with this session.",
-        inputSchema: {
-          type: "object",
-          properties: {},
-        },
+        description: "Return the active ticket.",
+        inputSchema: { type: "object", properties: {} },
       },
       {
         name: "report_usage",
         description:
-          "Report LLM token usage. By default the numbers are treated as CUMULATIVE session totals: only the increase since your last report is attributed to the current ticket, so switching tickets mid-session attributes tokens correctly. Report often (e.g. each turn) and call set_ticket when you switch tasks. Pass reporting:\"incremental\" if you are instead reporting a standalone per-task chunk.",
+          "Report LLM token usage. Numbers are CUMULATIVE session totals by default — only the delta since your last report is attributed to the active ticket (report each turn; call set_ticket when switching tasks). Use reporting:\"incremental\" for a standalone chunk.",
         inputSchema: {
           type: "object",
           properties: {
-            model: {
-              type: "string",
-              description: "Model name, e.g. claude-sonnet-4-20250514",
-            },
-            promptTokens: {
-              type: "number",
-              description: "Prompt tokens — cumulative session total by default",
-            },
-            completionTokens: {
-              type: "number",
-              description: "Completion tokens — cumulative session total by default",
-            },
-            totalTokens: {
-              type: "number",
-              description: "Total tokens — cumulative session total by default",
-            },
-            costUsd: {
-              type: "number",
-              description: "Cost in USD if known — cumulative session total by default",
-            },
+            model: { type: "string", description: "Model name" },
+            promptTokens: { type: "number", description: "Prompt tokens (cumulative by default)" },
+            completionTokens: { type: "number", description: "Completion tokens (cumulative by default)" },
+            totalTokens: { type: "number", description: "Total tokens (cumulative by default)" },
+            costUsd: { type: "number", description: "Cost in USD, if known" },
             reporting: {
               type: "string",
               enum: ["cumulative", "incremental"],
-              description: "cumulative (default): numbers are running session totals; the delta since the last report is attributed. incremental: numbers are a standalone chunk.",
+              description: "cumulative (default) = running totals; incremental = standalone chunk",
             },
-            ticketId: {
-              type: "string",
-              description: "Override ticket ID for this usage",
-            },
+            ticketId: { type: "string", description: "Override the active ticket" },
           },
           required: ["model", "promptTokens", "completionTokens", "totalTokens"],
         },
       },
       {
         name: "emit_session_activity",
-        description: "Emit a session activity event with optional duration and ticket association.",
+        description: "Record a session activity (e.g. coding) with a duration.",
         inputSchema: {
           type: "object",
           properties: {
-            activityType: {
-              type: "string",
-              enum: ["coding", "review", "planning", "debugging", "other"],
-            },
-            durationSeconds: {
-              type: "number",
-              description: "Duration of the activity in seconds",
-            },
-            ticketId: {
-              type: "string",
-              description: "Override ticket ID for this activity",
-            },
+            activityType: { type: "string", enum: ["coding", "review", "planning", "debugging", "other"] },
+            durationSeconds: { type: "number", description: "Activity duration in seconds" },
+            ticketId: { type: "string", description: "Override the active ticket" },
           },
           required: ["activityType", "durationSeconds"],
         },
@@ -118,28 +89,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "report_session_feedback",
         description:
-          "Report a short self-assessment of the current session: how effective it was, what blocked you, what went well, and a summary of completed items. Call once near the end of a task. Optional — it helps humans plan and run retros; it does not affect token accounting.",
+          "Optional end-of-task self-assessment (effectiveness 1–5, wins, blockers, summary). Aids planning/retros; does not affect token accounting.",
         inputSchema: {
           type: "object",
           properties: {
-            effectiveness: {
-              type: "number",
-              description: "Self-rated effectiveness, 1 (poor) to 5 (excellent)",
-            },
-            wins: {
-              type: "array",
-              items: { type: "string" },
-              description: "What went well / was accomplished",
-            },
-            blockers: {
-              type: "array",
-              items: { type: "string" },
-              description: "Pain points, friction, or things that slowed you down",
-            },
-            summary: {
-              type: "string",
-              description: "Brief summary of completed items for this session",
-            },
+            effectiveness: { type: "number", description: "1 (poor) to 5 (excellent)" },
+            wins: { type: "array", items: { type: "string" }, description: "What went well" },
+            blockers: { type: "array", items: { type: "string" }, description: "What slowed you down" },
+            summary: { type: "string", description: "Summary of completed items" },
           },
         },
       },
