@@ -20,6 +20,12 @@ export const config = {
   // private IP ranges. Loopback and link-local (cloud metadata) are always
   // blocked. Enable only for self-hosted trackers on an internal network.
   integrationAllowPrivateHosts: process.env.INTEGRATION_ALLOW_PRIVATE_HOSTS === "true",
+  // Local-only mode (#23): a guarantee that no data leaves the machine. When
+  // true, all outbound egress is blocked (issue-tracker sync and outbound
+  // webhook delivery — every fetchWithTimeout call) and SSO is disabled, so a
+  // developer can run the full stack (via docker compose) with nothing sent
+  // anywhere.
+  localOnly: process.env.LOCAL_ONLY === "true",
   // Browser origins allowed by CORS in production (comma-separated). Empty
   // defaults to APP_URL. In non-production, any origin is reflected for
   // convenience. Requests without an Origin header (curl, server-to-server,

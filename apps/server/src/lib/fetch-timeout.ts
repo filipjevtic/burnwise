@@ -6,6 +6,8 @@
  * clear, provider-agnostic error on timeout.
  */
 
+import { config } from "../config.js";
+
 export const DEFAULT_FETCH_TIMEOUT_MS = 30_000;
 
 export class FetchTimeoutError extends Error {
@@ -15,11 +17,24 @@ export class FetchTimeoutError extends Error {
   }
 }
 
+export class LocalOnlyError extends Error {
+  constructor() {
+    super("Outbound request blocked: LOCAL_ONLY mode is enabled");
+    this.name = "LocalOnlyError";
+  }
+}
+
 export async function fetchWithTimeout(
   url: string,
   init: RequestInit = {},
   timeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS
 ): Promise<Response> {
+  // Local-only mode (#23): no external egress. Every integration sync and
+  // outbound webhook delivery routes through here, so this one guard blocks
+  // them all.
+  if (config.localOnly) {
+    throw new LocalOnlyError();
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
