@@ -9,11 +9,16 @@ interface ForwardRequestInput {
 
 interface ForwardRequestOutput {
   response: Response;
-  responseBody: string;
   statusCode: number;
   headers: Record<string, string | undefined>;
 }
 
+/**
+ * Forward a request to the configured upstream LLM API and return the live
+ * `Response` without consuming its body — the caller decides whether to buffer
+ * (plain JSON) or stream (SSE) it, so streamed responses can be piped straight
+ * back to the client while their usage is captured.
+ */
 export async function forwardRequest(input: ForwardRequestInput): Promise<ForwardRequestOutput> {
   const url = new URL(input.path, config.upstreamUrl).toString();
 
@@ -40,7 +45,6 @@ export async function forwardRequest(input: ForwardRequestInput): Promise<Forwar
   }
 
   const response = await fetch(url, fetchInit);
-  const responseBody = await response.text();
 
   const headers: Record<string, string | undefined> = {};
   response.headers.forEach((value, key) => {
@@ -49,7 +53,6 @@ export async function forwardRequest(input: ForwardRequestInput): Promise<Forwar
 
   return {
     response,
-    responseBody,
     statusCode: response.status,
     headers,
   };
