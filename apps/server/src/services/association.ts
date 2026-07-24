@@ -21,10 +21,6 @@ export interface AssociationCache {
   sessions: Map<string, string | null>;
 }
 
-export function createAssociationCache(): AssociationCache {
-  return { tickets: new Map(), sessions: new Map() };
-}
-
 /** Resolve an external ticket key to an internal id, memoized via the cache. */
 async function lookupTicketByExternalId(
   prisma: PrismaClient,

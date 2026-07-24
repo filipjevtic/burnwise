@@ -11,7 +11,7 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { Event, IngestResponse } from "@burnwise/schema";
 import { resolveCostUsd } from "@burnwise/pricing";
-import { associateEvent, createAssociationCache } from "./association.js";
+import { associateEvent, type AssociationCache } from "./association.js";
 import { deriveEventMetrics } from "./rollup.js";
 
 /** Max rows per createMany statement to keep parameter counts well-bounded. */
@@ -47,7 +47,7 @@ export function backfillEventCost(eventType: string, payload: unknown): unknown 
  */
 export async function persistEvents(prisma: PrismaClient, events: Event[]): Promise<IngestResponse> {
   const response: IngestResponse = { accepted: 0, rejected: 0, errors: [] };
-  const cache = createAssociationCache();
+  const cache: AssociationCache = { tickets: new Map(), sessions: new Map() };
   const rows: Array<{ index: number; data: Prisma.EventCreateManyInput }> = [];
 
   // Phase 1: resolve ticket associations and build insert rows.
