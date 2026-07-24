@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { buildRecommendation, computeDeveloperCapacity, buildBudgetStatus } from "./forecast.js";
+import { buildRecommendation, computeDeveloperCapacity, computeHistoricalStats, buildBudgetStatus } from "./forecast.js";
 
 function makeHistorical(overrides: Partial<Parameters<typeof buildRecommendation>[0]> = {}) {
   return {
@@ -81,36 +81,53 @@ describe("buildBudgetStatus", () => {
 });
 
 describe("computeDeveloperCapacity", () => {
-  it("aggregates only completed tickets' events per developer", () => {
-    const result = computeDeveloperCapacity([
-      {
-        storyPoints: 3,
-        events: [
-          { eventType: "llm.response", payload: { totalTokens: 100 }, userId: "a", ticketId: "t1" },
-          { eventType: "session.activity", payload: { durationSeconds: 60 }, userId: "b", ticketId: "t1" },
-        ],
-      },
-      {
-        // Not completed (no story points) -> excluded.
-        storyPoints: null,
-        events: [{ eventType: "llm.response", payload: { totalTokens: 999 }, userId: "a", ticketId: "t2" }],
-      },
+  it("builds per-developer capacity from rollups + distinct counts, sorted by tokens", () => {
+    const rollups = new Map([
+      ["a", { tokens: 100, cost: 1, durationSeconds: 0, eventCount: 2 }],
+      ["b", { tokens: 500, cost: 5, durationSeconds: 60, eventCount: 1 }],
+    ]);
+    const sessionCounts = new Map([
+      ["a", 2],
+      ["b", 1],
+    ]);
+    const ticketCounts = new Map([
+      ["a", 1],
+      ["b", 3],
     ]);
 
+    const result = computeDeveloperCapacity(rollups, sessionCounts, ticketCounts);
+
+    // Sorted by tokens descending: b before a.
+    assert.deepStrictEqual(result.map((d) => d.userId), ["b", "a"]);
     const a = result.find((d) => d.userId === "a")!;
     assert.strictEqual(a.tokens, 100);
+    assert.strictEqual(a.sessionCount, 2);
     assert.strictEqual(a.ticketCount, 1);
     const b = result.find((d) => d.userId === "b")!;
     assert.strictEqual(b.durationSeconds, 60);
+    assert.strictEqual(b.ticketCount, 3);
   });
 
-  it("ignores events without a userId", () => {
-    const result = computeDeveloperCapacity([
-      {
-        storyPoints: 2,
-        events: [{ eventType: "llm.response", payload: { totalTokens: 10 } }],
-      },
-    ]);
-    assert.strictEqual(result.length, 0);
+  it("defaults missing distinct counts to zero", () => {
+    const rollups = new Map([["a", { tokens: 10, cost: 0, durationSeconds: 0, eventCount: 1 }]]);
+    const result = computeDeveloperCapacity(rollups, new Map(), new Map());
+    assert.strictEqual(result[0].sessionCount, 0);
+    assert.strictEqual(result[0].ticketCount, 0);
+  });
+});
+
+describe("computeHistoricalStats", () => {
+  it("computes per-story-point ratios from the effort rollup", () => {
+    const stats = computeHistoricalStats(5, 10, { tokens: 10000, cost: 0.5, durationSeconds: 3600, eventCount: 20 });
+    assert.strictEqual(stats.completedTickets, 5);
+    assert.strictEqual(stats.tokensPerStoryPoint, 1000);
+    assert.strictEqual(stats.costPerStoryPoint, 0.05);
+    assert.strictEqual(stats.durationSecondsPerStoryPoint, 360);
+  });
+
+  it("avoids divide-by-zero when there are no story points", () => {
+    const stats = computeHistoricalStats(0, 0, { tokens: 0, cost: 0, durationSeconds: 0, eventCount: 0 });
+    assert.strictEqual(stats.tokensPerStoryPoint, 0);
+    assert.strictEqual(stats.costPerStoryPoint, 0);
   });
 });

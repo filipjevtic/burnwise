@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { rollupEvents, aggregateByDeveloper, type DeveloperRollup } from "./rollup.js";
+import { emptyRollup, type DeveloperRollup, type Rollup } from "./rollup.js";
+import { dbRollup, dbRollupByField, dbDistinctCountByField } from "./aggregate-db.js";
 import { getProjectUsageTotals } from "./usage.js";
 
 export interface HistoricalStats {
@@ -11,19 +12,6 @@ export interface HistoricalStats {
   tokensPerStoryPoint: number;
   costPerStoryPoint: number;
   durationSecondsPerStoryPoint: number;
-}
-
-interface PrismaEvent {
-  eventType: string;
-  payload: Record<string, unknown>;
-  userId?: string;
-  sessionId?: string | null;
-  ticketId?: string | null;
-}
-
-interface TicketWithEvents {
-  storyPoints: number | null;
-  events: PrismaEvent[];
 }
 
 export interface ForecastInput {
@@ -64,11 +52,11 @@ export async function generateForecast(
 ): Promise<ForecastResult> {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    include: {
-      tickets: {
-        where: { status: "done" },
-        include: { events: true },
-      },
+    select: {
+      tokenBudget: true,
+      costBudget: true,
+      // Completed tickets only — historical velocity is measured over done work.
+      tickets: { where: { status: "done" }, select: { id: true, storyPoints: true } },
     },
   });
 
@@ -76,9 +64,24 @@ export async function generateForecast(
     throw new Error("Project not found");
   }
 
-  const tickets = project.tickets as unknown as TicketWithEvents[];
-  const historical = computeHistoricalStats(tickets);
-  const developers = computeDeveloperCapacity(tickets);
+  // Only tickets with story points contribute to per-point velocity.
+  const completed = project.tickets.filter((t) => t.storyPoints && t.storyPoints > 0);
+  const ticketIds = completed.map((t) => t.id);
+  const totalStoryPoints = completed.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
+
+  // Aggregate those tickets' events in the DB rather than loading them (#176).
+  const scope = { ticketId: { in: ticketIds } };
+  const [effort, devRollups, sessionCounts, ticketCounts] = ticketIds.length
+    ? await Promise.all([
+        dbRollup(prisma, scope),
+        dbRollupByField(prisma, scope, "userId"),
+        dbDistinctCountByField(prisma, scope, "userId", "sessionId"),
+        dbDistinctCountByField(prisma, scope, "userId", "ticketId"),
+      ])
+    : [emptyRollup(), new Map<string, Rollup>(), new Map<string, number>(), new Map<string, number>()];
+
+  const historical = computeHistoricalStats(completed.length, totalStoryPoints, effort);
+  const developers = computeDeveloperCapacity(devRollups, sessionCounts, ticketCounts);
 
   const recommendation = buildRecommendation(historical, input);
 
@@ -104,34 +107,36 @@ export async function generateForecast(
 /**
  * Per-developer capacity over completed tickets: who has been doing how much
  * AI-assisted work, so planners can reason about realistic team throughput.
+ * Built from DB-aggregated rollups (keyed by userId) plus distinct session/ticket
+ * counts, sorted by tokens descending.
  */
-export function computeDeveloperCapacity(tickets: TicketWithEvents[]): DeveloperCapacity[] {
-  const completed = tickets.filter((t) => t.storyPoints && t.storyPoints > 0);
-  const events = completed.flatMap((t) =>
-    t.events
-      .filter((e) => e.userId)
-      .map((e) => ({
-        eventType: e.eventType,
-        payload: e.payload,
-        userId: e.userId as string,
-        sessionId: e.sessionId ?? null,
-        ticketId: e.ticketId ?? null,
-      }))
-  );
-  return aggregateByDeveloper(events);
+export function computeDeveloperCapacity(
+  rollups: Map<string, Rollup>,
+  sessionCounts: Map<string, number>,
+  ticketCounts: Map<string, number>
+): DeveloperCapacity[] {
+  return [...rollups.entries()]
+    .map(([userId, r]) => ({
+      userId,
+      ...r,
+      sessionCount: sessionCounts.get(userId) ?? 0,
+      ticketCount: ticketCounts.get(userId) ?? 0,
+    }))
+    .sort((a, b) => b.tokens - a.tokens);
 }
 
-function computeHistoricalStats(
-  tickets: Array<{ storyPoints: number | null; events: PrismaEvent[] }>
+/**
+ * Historical velocity stats from the completed-ticket count, their total story
+ * points, and their DB-aggregated effort rollup (tokens/cost/duration).
+ */
+export function computeHistoricalStats(
+  completedTickets: number,
+  totalStoryPoints: number,
+  effort: Rollup
 ): HistoricalStats {
-  const completedTickets = tickets.filter((t) => t.storyPoints && t.storyPoints > 0);
-  const totalStoryPoints = completedTickets.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
-
-  const rollup = rollupEvents(completedTickets.flatMap((t) => t.events));
-  const { tokens: totalTokens, cost: totalCost, durationSeconds: totalDurationSeconds } = rollup;
-
+  const { tokens: totalTokens, cost: totalCost, durationSeconds: totalDurationSeconds } = effort;
   return {
-    completedTickets: completedTickets.length,
+    completedTickets,
     totalStoryPoints,
     totalTokens,
     totalCost,
