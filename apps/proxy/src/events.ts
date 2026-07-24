@@ -2,12 +2,15 @@ import { config } from "./config.js";
 import type { Event } from "@burnwise/schema";
 import { estimateCost } from "@burnwise/pricing";
 import type { Attribution } from "./attribution.js";
+import { parseResponse, extractRequest } from "./providers.js";
 
 // Re-exported so existing importers (and tests) keep a stable path.
 export { estimateCost };
 
 interface EmitLlmEventsInput {
   requestId: string;
+  /** Provider detected for this request (anthropic / openai / …). */
+  provider: string;
   requestBody: unknown;
   responseBody: string;
   latencyMs: number;
@@ -16,13 +19,16 @@ interface EmitLlmEventsInput {
 
 export async function emitLlmEvents(input: EmitLlmEventsInput): Promise<void> {
   const now = new Date().toISOString();
-  const requestBody = input.requestBody as Record<string, unknown>;
-  const responseBody = parseJson(input.responseBody);
+  const provider = input.provider;
 
-  const model = extractModel(requestBody, responseBody);
-  const promptTokens = extractPromptTokens(responseBody);
-  const completionTokens = extractCompletionTokens(responseBody);
-  const totalTokens = extractTotalTokens(responseBody) || promptTokens + completionTokens;
+  const request = extractRequest(provider, input.requestBody);
+  const response = parseResponse(provider, input.responseBody);
+
+  // The response echoes the resolved model; fall back to the requested one.
+  const model = response.model || request.model || "unknown";
+  const promptTokens = response.promptTokens;
+  const completionTokens = response.completionTokens;
+  const totalTokens = response.totalTokens || promptTokens + completionTokens;
 
   const attr = input.attribution;
   // Identity: prefer per-request attribution headers, fall back to env config.
@@ -31,7 +37,7 @@ export async function emitLlmEvents(input: EmitLlmEventsInput): Promise<void> {
   const userId = attr?.userId || config.userId;
   const projectId = attr?.projectId || config.projectId;
   const sharedMetadata: Record<string, unknown> = {
-    proxyProvider: config.provider,
+    proxyProvider: provider,
     ...(attr?.properties || {}),
   };
 
@@ -48,10 +54,10 @@ export async function emitLlmEvents(input: EmitLlmEventsInput): Promise<void> {
     traceId: input.requestId,
     metadata: { ...sharedMetadata },
     payload: {
-      provider: config.provider,
+      provider,
       model,
-      messages: (requestBody.messages as Record<string, unknown>[]) || undefined,
-      promptText: extractPromptText(requestBody),
+      messages: request.messages,
+      promptText: request.promptText,
     },
   };
 
@@ -68,14 +74,14 @@ export async function emitLlmEvents(input: EmitLlmEventsInput): Promise<void> {
     traceId: input.requestId,
     metadata: { ...sharedMetadata, requestId: input.requestId },
     payload: {
-      provider: config.provider,
+      provider,
       model,
       promptTokens,
       completionTokens,
       totalTokens,
-      costUsd: estimateCost(config.provider, model, promptTokens, completionTokens),
+      costUsd: estimateCost(provider, model, promptTokens, completionTokens),
       latencyMs: input.latencyMs,
-      responseText: extractResponseText(responseBody),
+      responseText: response.responseText,
       requestId: input.requestId,
     },
   };
@@ -91,45 +97,3 @@ export async function emitLlmEvents(input: EmitLlmEventsInput): Promise<void> {
     body: JSON.stringify({ events: [requestEvent, responseEvent] }),
   });
 }
-
-function parseJson(text: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function extractModel(requestBody: Record<string, unknown>, responseBody: Record<string, unknown> | null): string {
-  return (responseBody?.model as string) || (requestBody.model as string) || "unknown";
-}
-
-function extractPromptTokens(responseBody: Record<string, unknown> | null): number {
-  return (responseBody?.usage as Record<string, number>)?.prompt_tokens || 0;
-}
-
-function extractCompletionTokens(responseBody: Record<string, unknown> | null): number {
-  return (responseBody?.usage as Record<string, number>)?.completion_tokens || 0;
-}
-
-function extractTotalTokens(responseBody: Record<string, unknown> | null): number {
-  return (responseBody?.usage as Record<string, number>)?.total_tokens || 0;
-}
-
-function extractPromptText(requestBody: Record<string, unknown>): string | undefined {
-  const messages = requestBody.messages as Array<Record<string, unknown>>;
-  if (!messages) return undefined;
-  return messages
-    .map((m) => (m.content as string) || "")
-    .filter(Boolean)
-    .join("\n");
-}
-
-function extractResponseText(responseBody: Record<string, unknown> | null): string | undefined {
-  if (!responseBody) return undefined;
-  const choices = responseBody.choices as Array<Record<string, unknown>>;
-  if (!choices || choices.length === 0) return undefined;
-  const message = choices[0].message as Record<string, unknown>;
-  return (message?.content as string) || (choices[0].text as string);
-}
-

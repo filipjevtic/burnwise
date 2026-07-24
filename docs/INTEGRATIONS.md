@@ -52,15 +52,23 @@ Useful flags and env:
 
 ## API proxy (`apps/proxy`)
 
-Point any OpenAI-compatible client at the proxy. It forwards to your upstream
-provider, captures token usage, and strips the Burnwise headers before they
-reach the provider.
+Point any OpenAI-compatible **or** Anthropic client at the proxy. It forwards to
+your upstream provider, captures token usage (including streamed `stream: true`
+responses), and strips the Burnwise headers before they reach the provider.
+
+The proxy speaks both wire formats and auto-detects which one a request uses —
+from the path (`/v1/chat/completions` vs `/v1/messages`), the model name, or the
+auth header — so a single proxy can front OpenAI, Anthropic, and any
+OpenAI-compatible tool (Cursor, Aider, Continue, Cody). `PROVIDER` is the
+fallback used only when detection is ambiguous.
+
+### OpenAI-compatible clients (Cursor, Aider, Continue, …)
 
 ```bash
 # Configure the proxy (server-side env)
 export SERVER_URL=http://localhost:3000
 export UPSTREAM_URL=https://api.openai.com
-export PROVIDER=openai
+export PROVIDER=openai   # fallback when auto-detection is ambiguous
 
 # Point your client at the proxy and tag the request
 export OPENAI_BASE_URL=http://localhost:4000/v1
@@ -70,6 +78,32 @@ curl $OPENAI_BASE_URL/chat/completions \
   -H "X-Burnwise-Ticket: PROJ-123" \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}'
 ```
+
+### Anthropic clients (Claude Code, Claude SDK, Cody/Continue on Anthropic)
+
+Set `UPSTREAM_URL` to the Anthropic API and point the client's base URL at the
+proxy. Claude Code honours `ANTHROPIC_BASE_URL`:
+
+```bash
+# Configure the proxy (server-side env)
+export UPSTREAM_URL=https://api.anthropic.com
+export PROVIDER=anthropic   # fallback; /v1/messages is auto-detected anyway
+
+# Route Claude Code through the proxy
+export ANTHROPIC_BASE_URL=http://localhost:4000
+
+# …or call the Messages API directly
+curl http://localhost:4000/v1/messages \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "X-Burnwise-Key: bw_sk_..." \
+  -H "X-Burnwise-Ticket: PROJ-123" \
+  -d '{"model":"claude-opus-4-8","max_tokens":256,"messages":[{"role":"user","content":"hi"}]}'
+```
+
+Streamed responses are piped straight back to the client (no buffering); usage
+and cost are captured once the stream completes. Anthropic prompt tokens include
+cache read/creation tokens so totals reflect everything the request consumed.
 
 Attribution headers (all optional except the key for auth):
 

@@ -32,13 +32,19 @@
 
 | Tool | Integration | Token tracking |
 |------|-------------|----------------|
-| **Claude Code** | MCP server (`set_ticket`, `report_usage`) | Self-reported via MCP |
+| **Claude Code** | API proxy (`ANTHROPIC_BASE_URL`) or MCP server | Automatic (proxy) / self-reported (MCP) |
 | **Cursor** | API proxy (`OPENAI_BASE_URL`) | Automatic |
 | **Aider** | API proxy (`OPENAI_BASE_URL`) | Automatic |
 | **Continue.dev** | API proxy (configurable base URL) | Automatic |
 | **Cody (Sourcegraph)** | API proxy (configurable base URL) | Automatic |
+| **Anthropic API (direct)** | Anthropic-format proxy (`/v1/messages`) | Automatic |
 | **OpenAI SDK / custom agents** | API proxy + `X-Burnwise-*` headers | Automatic |
 | **Any CLI tool** | CLI wrapper (`ats -- <command>`) | Session activity |
+
+The proxy speaks both the OpenAI (`/v1/chat/completions`) and Anthropic
+(`/v1/messages`) wire formats — including streamed responses — and auto-detects
+which one each request uses, so one proxy fronts every OpenAI- or
+Anthropic-compatible tool.
 
 **Coming soon:**
 
@@ -46,7 +52,6 @@
 |------|---------------------|
 | **GitHub Copilot** | VS Code extension telemetry |
 | **Windsurf / Devin** | VS Code extension telemetry |
-| **Anthropic API (direct)** | Anthropic-format proxy |
 | **AWS Bedrock** | Cloud billing integration |
 | **GCP Vertex AI** | Cloud Logging integration |
 
@@ -196,7 +201,7 @@ Node.js 22 · TypeScript 6 · Fastify 5 · Prisma 7 · PostgreSQL · React 19 ·
 |------|---------|
 | `apps/web` | React dashboard (Vite + Tailwind + shadcn/ui) |
 | `apps/server` | Fastify REST API, Prisma ORM, JWT auth, integrations |
-| `apps/proxy` | OpenAI-compatible API proxy that emits events |
+| `apps/proxy` | OpenAI- and Anthropic-format API proxy that emits events |
 | `apps/cli` | Wrap commands and emit `session.activity` events |
 | `apps/vscode` | VS Code extension collector |
 | `apps/mcp` | MCP server for Claude Code and other MCP clients |
