@@ -38,13 +38,16 @@
 | **Continue.dev** | API proxy (configurable base URL) | Automatic |
 | **Cody (Sourcegraph)** | API proxy (configurable base URL) | Automatic |
 | **Anthropic API (direct)** | Anthropic-format proxy (`/v1/messages`) | Automatic |
+| **AWS Bedrock** | Cloud-log ingestion (`/api/v1/cloud/logs`) | Automatic |
+| **GCP Vertex AI** | Cloud-log ingestion (`/api/v1/cloud/logs`) | Automatic |
 | **OpenAI SDK / custom agents** | API proxy + `X-Burnwise-*` headers | Automatic |
 | **Any CLI tool** | CLI wrapper (`ats -- <command>`) | Session activity |
 
 The proxy speaks both the OpenAI (`/v1/chat/completions`) and Anthropic
 (`/v1/messages`) wire formats — including streamed responses — and auto-detects
 which one each request uses, so one proxy fronts every OpenAI- or
-Anthropic-compatible tool.
+Anthropic-compatible tool. For LLMs that can't be proxied (Bedrock, Vertex),
+forward the cloud's native invocation logs to the cloud-log ingest endpoint.
 
 **Coming soon:**
 
@@ -52,8 +55,7 @@ Anthropic-compatible tool.
 |------|---------------------|
 | **GitHub Copilot** | VS Code extension telemetry |
 | **Windsurf / Devin** | VS Code extension telemetry |
-| **AWS Bedrock** | Cloud billing integration |
-| **GCP Vertex AI** | Cloud Logging integration |
+| **Azure OpenAI** | Cloud-log ingestion |
 
 See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for copy-paste setup instructions.
 

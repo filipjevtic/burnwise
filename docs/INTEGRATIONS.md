@@ -198,6 +198,46 @@ ticket or session, set a `burnwise.ticket` (issue key) and/or
 `burnwise.session_id` span attribute; ticket keys found anywhere in span
 attributes are also matched automatically.
 
+## Cloud-hosted LLMs (AWS Bedrock, GCP Vertex AI)
+
+LLM calls made directly to Bedrock or Vertex can't be routed through the proxy,
+but both clouds log every invocation — with token counts — to their native log
+systems. Forward those logs to the cloud-log ingest endpoint and each recognized
+record becomes an `llm.response` event, flowing into the same by-provider /
+by-tool / cost analytics as proxied traffic.
+
+```
+# Cloud-log ingest endpoint (project-scoped API key required)
+POST https://<your-burnwise>/api/v1/cloud/logs
+Authorization: Bearer bw_sk_...
+Content-Type: application/json
+
+{ "entries": [ <raw log record>, ... ] }
+```
+
+The mapper recognizes three record shapes automatically:
+
+- **AWS Bedrock** model-invocation logs — `{ modelId, input.inputTokenCount,
+  output.outputTokenCount }`. Enable *model invocation logging* on Bedrock
+  (CloudWatch or S3) and forward records via a subscription filter / Lambda.
+- **GCP Vertex AI** Cloud Logging entries — model from `resource.labels.model_id`,
+  usage from `jsonPayload.usageMetadata` (Gemini) or `jsonPayload.usage` (Claude
+  on Vertex). Create a log sink filtered to `aiplatform.googleapis.com` that
+  POSTs to the endpoint (e.g. Pub/Sub → Cloud Function).
+- **Pre-normalized** — `{ provider, model, promptTokens, completionTokens,
+  timestamp }` for a custom exporter that already parsed the log.
+
+Records that aren't recognized, or that carry no token counts, are **skipped**
+(reported in the response `{ accepted, rejected, skipped }`) rather than
+rejecting the batch, so a mixed log export ingests cleanly. Ingestion is
+idempotent by event id, so re-delivery is safe. Cost is backfilled from the
+provider-aware price table (Bedrock/Vertex rates), so no cost field is required.
+
+A **project-scoped** API key is required (log records carry no Burnwise identity
+— the key supplies workspace/project/user). To attribute usage to a ticket or
+session, add a `burnwise.ticket` and/or `burnwise.session_id` label: on Bedrock
+via `InvokeModel` `requestMetadata`, on Vertex via the log entry `labels`.
+
 ## CI/CD cost webhooks
 
 Send build cost/duration to Burnwise from your pipeline. Configure

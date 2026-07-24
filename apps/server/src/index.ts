@@ -20,6 +20,7 @@ import { registerSessionRoutes } from "./routes/sessions.js";
 import { registerAnalyticsRoutes } from "./routes/analytics.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
 import { registerOtelRoutes } from "./routes/otel.js";
+import { registerCloudRoutes } from "./routes/cloud.js";
 
 const app = Fastify({
   logger: true,
@@ -81,6 +82,7 @@ await app.register(registerSessionRoutes, { prefix: "/api/v1/sessions" });
 await app.register(registerAnalyticsRoutes, { prefix: "/api/v1/analytics" });
 await app.register(registerWorkspaceRoutes, { prefix: "/api/v1/workspace" });
 await app.register(registerOtelRoutes, { prefix: "/api/v1/otel" });
+await app.register(registerCloudRoutes, { prefix: "/api/v1/cloud" });
 
 try {
   await app.listen({ port: config.port, host: "::" });
