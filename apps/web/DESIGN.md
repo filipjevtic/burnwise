@@ -1,4 +1,4 @@
-# Burnwise — Design System
+# Burnwise: Design System
 
 > The single source of truth for tokens, type, and motion. Implemented in
 > `src/index.css` (`@theme` + `:root`/`.dark`). See `PRODUCT.md` for intent.
@@ -6,10 +6,10 @@
 ## Color (OKLCH)
 
 All colors are OKLCH for perceptually uniform ramps. Neutrals carry a tiny cool
-chroma (~0.006–0.015, hue 265) to cohere with the steel-blue brick in the mark.
+chroma (~0.006-0.015, hue 265) to cohere with the steel-blue brick in the mark.
 Semantic tokens are redefined per theme; utilities reference them via CSS vars.
 
-### Accent — flame orange (the one accent)
+### Accent: flame orange (the one accent)
 
 | Token | Dark | Light | Use |
 |---|---|---|---|
@@ -38,9 +38,9 @@ surfaces:
 | `--muted-foreground` (secondary ink) | `oklch(0.72 0.012 265)` | `oklch(0.455 0.015 265)` |
 
 `muted-foreground` is a *genuine mid* (≥4.5:1 on its background), not the
-baseline wash. It is for secondary text only — not the default for everything.
+baseline wash. It is for secondary text only, not the default for everything.
 
-### Semantic (state) — replaces the baseline's single `destructive` token
+### Semantic (state): replaces the baseline's single `destructive` token
 
 | Token | Dark | Light | Meaning |
 |---|---|---|---|
@@ -49,7 +49,7 @@ baseline wash. It is for secondary text only — not the default for everything.
 | `--destructive` | `oklch(0.64 0.20 25)` | `oklch(0.58 0.22 27)` | over budget, error, destructive |
 | `--info` | `oklch(0.70 0.13 240)` | `oklch(0.55 0.15 245)` | neutral informational |
 
-Never rely on color alone — pair with icon/label/number.
+Never rely on color alone; pair with icon/label/number.
 
 ## Type
 
@@ -65,7 +65,7 @@ Never rely on color alone — pair with icon/label/number.
 ## Radius
 
 `--radius: 0.5rem`. `lg` = 0.5rem (cards/panels), `md` = 0.375rem (buttons,
-inputs), `sm` = 0.25rem (badges, chips). Consistent — not `rounded-lg` on
+inputs), `sm` = 0.25rem (badges, chips). Consistent, not `rounded-lg` on
 everything.
 
 ## Motion
@@ -75,7 +75,7 @@ everything.
 - Easing: `--ease-out: cubic-bezier(0.2, 0, 0, 1)`. No bounce.
 - Transition only what changes state. No page-load choreography.
 - **`prefers-reduced-motion: reduce` disables all non-essential animation** (global
-  base rule) — every effect degrades to an instant state change.
+  base rule): every effect degrades to an instant state change.
 
 ## Elevation / z-index
 
@@ -91,5 +91,5 @@ overlays (popover, modal, mobile drawer) and stay subtle.
 - No `border-left/right > 1px` colored accent stripe (impeccable ban).
 - No purple→blue gradients; no gradient text.
 - No gray text on colored backgrounds.
-- Cards are not the default container — reach for a plain section first.
+- Cards are not the default container; reach for a plain section first.
 - Skeletons for loading inside content, not spinners.

@@ -9,12 +9,12 @@ providers. It consumes agent telemetry (proxy, IDE, MCP, CLI, CI) and emits a
 planning signal back to the team: **how much AI-assisted effort actually went
 into each ticket, and what that means for the next sprint.**
 
-Burnwise is **cross-tool and vendor-neutral by design** — the goal is one pane
+Burnwise is **cross-tool and vendor-neutral by design**: the goal is one pane
 across every AI coding tool (today: OpenAI-compatible agents via proxy, Claude
 Code via MCP, any command via CLI; on the roadmap: direct Anthropic, Bedrock,
 Vertex, Cursor/Copilot/Windsurf). And it is **planning support, not
 surveillance**: per-developer views serve capacity planning and estimate
-calibration, never a productivity leaderboard — default to team/aggregate framing.
+calibration, never a productivity leaderboard; default to team/aggregate framing.
 
 ## Personas
 
@@ -27,7 +27,7 @@ calibration, never a productivity leaderboard — default to team/aggregate fram
 
 ## End-to-end loops
 
-### Loop A — Developer ties agent work to a ticket (primary)
+### Loop A: Developer ties agent work to a ticket (primary)
 
 > As a developer, when I start work on `PROJ-123` I run `ats start PROJ-123`
 > (or set it in my IDE/MCP, or just branch `PROJ-123-*`). Every LLM call through
@@ -39,7 +39,7 @@ header ticket > git branch convention (`[A-Z]+-\d+`) > prompt / metadata
 extraction.** Whatever signal exists, the strongest wins, so a mixed-tool
 developer never has to think about it.
 
-### Loop B — PM reviews ticket / sprint feedback
+### Loop B: PM reviews ticket / sprint feedback
 
 > As a PM, I open a sprint and see, per ticket, the **story points vs actual**
 > tokens / cost / agent-time, who worked it, and the trace of agent activity \u2014
@@ -49,13 +49,13 @@ This is the headline: **estimate accuracy**. The Velocity view shows committed
 vs completed points with variance flags; the Efficiency view shows AI effort per
 completed point over time; sessions drill down to a trace timeline.
 
-### Loop C — Team Lead monitors teams across projects
+### Loop C: Team Lead monitors teams across projects
 
 > As a team lead, I see per-developer and per-team rollups (cost, tokens, active
 > tickets, trend over time) across multiple projects and sprints, with budget
 > alerts.
 
-### Loop D — Admin self-hosts confidently
+### Loop D: Admin self-hosts confidently
 
 > As an admin, I deploy with one command, configure SSO (e.g. Google for admins,
 > GitHub for devs), issue per-developer ingest keys, and trust that project data
