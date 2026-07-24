@@ -9,6 +9,7 @@ import { requireProjectRole } from "../middleware/rbac.js";
 import { verifyCiWebhook, type CiProvider } from "../lib/webhook.js";
 import { encryptSecret, decryptSecret } from "../lib/crypto.js";
 import { estimateCiCost } from "../services/ci-cost.js";
+import { recordAudit } from "../services/audit.js";
 
 const CI_PROVIDERS: CiProvider[] = ["github", "gitlab", "generic"];
 
@@ -301,6 +302,20 @@ export async function registerCIRoutes(
       where: { id: projectId },
       data,
       select: { ciWebhookSecret: true, ciProvider: true },
+    });
+    const actor = (request as FastifyRequest & { user: AuthPayload }).user;
+    await recordAudit(prisma, {
+      workspaceId: actor.workspaceId,
+      actorUserId: actor.userId,
+      action: "ci.webhook_config",
+      targetType: "project",
+      targetId: projectId,
+      // Record what changed, never the secret value itself.
+      metadata: {
+        secretChanged: secret !== undefined,
+        secretConfiguredAfter: Boolean(updated.ciWebhookSecret),
+        provider: updated.ciProvider ?? null,
+      },
     });
     return { configured: Boolean(updated.ciWebhookSecret), provider: updated.ciProvider ?? null };
   });

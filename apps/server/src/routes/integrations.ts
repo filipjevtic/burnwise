@@ -1,17 +1,32 @@
-import type { FastifyInstance, FastifyPluginOptions, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from "fastify";
 import { getPrisma } from "../db.js";
 import { syncGitHub, syncJira, syncGitLab } from "../integrations/index.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { requireProjectRole } from "../middleware/rbac.js";
 import { encryptSecret } from "../lib/crypto.js";
 import { assertSafeIntegrationUrl, SsrfError } from "../lib/ssrf.js";
 import { FetchTimeoutError } from "../lib/fetch-timeout.js";
+import { recordAudit } from "../services/audit.js";
 
 export async function registerIntegrationRoutes(
   app: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
   const prisma = await getPrisma();
+
+  // Audit an integration credential change (#20). Records who connected which
+  // provider to which project — never the token itself.
+  async function auditConnect(request: FastifyRequest, projectId: string, provider: string, baseUrl: string) {
+    const actor = (request as FastifyRequest & { user: AuthPayload }).user;
+    await recordAudit(prisma, {
+      workspaceId: actor.workspaceId,
+      actorUserId: actor.userId,
+      action: "integration.connect",
+      targetType: "project",
+      targetId: projectId,
+      metadata: { provider, baseUrl },
+    });
+  }
 
   // Run an integration sync, mapping a provider timeout (#11) to a clear 504 so
   // a slow/unresponsive tracker doesn't surface as an opaque 500. Returns null
@@ -56,6 +71,7 @@ export async function registerIntegrationRoutes(
         repository: `${owner}/${repo}`,
       },
     });
+    await auditConnect(request, projectId, "github", `https://github.com/${owner}/${repo}`);
 
     const result = await runSync(reply, () => syncGitHub({
       token: token || "",
@@ -104,6 +120,7 @@ export async function registerIntegrationRoutes(
         storyPointsField,
       },
     });
+    await auditConnect(request, projectId, "jira", baseUrl);
 
     const result = await runSync(reply, () => syncJira({
       baseUrl,
@@ -151,6 +168,7 @@ export async function registerIntegrationRoutes(
         repository: projectPath,
       },
     });
+    await auditConnect(request, projectId, "gitlab", baseUrl);
 
     const result = await runSync(reply, () => syncGitLab({
       baseUrl,
