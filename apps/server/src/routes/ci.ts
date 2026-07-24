@@ -214,25 +214,29 @@ export async function registerCIRoutes(
     const { workspaceId } = (request as FastifyRequest & { user: AuthPayload }).user;
     if (!(await assertProjectInWorkspace(prisma, reply, request.params.projectId, workspaceId))) return;
 
-    const events = await prisma.event.findMany({
-      where: { projectId: request.params.projectId, eventType: "ci.run" },
-    });
-
-    let totalCost = 0;
-    let totalDuration = 0;
-    let runCount = 0;
-    for (const event of events) {
-      const payload = event.payload as Record<string, unknown>;
-      totalCost += (payload.costUsd as number) || 0;
-      totalDuration += (payload.durationSeconds as number) || 0;
-      runCount++;
-    }
+    // Aggregate in the DB (#176). Cost/count use the denormalized costUsd column;
+    // CI run duration lives only in payload (it isn't the session-activity metric
+    // the durationSeconds column tracks), so sum it via a guarded JSON cast.
+    const projectId = request.params.projectId;
+    const [agg, durationRows] = await Promise.all([
+      prisma.event.aggregate({
+        where: { projectId, eventType: "ci.run" },
+        _sum: { costUsd: true },
+        _count: { _all: true },
+      }),
+      prisma.$queryRawUnsafe<{ duration: number }[]>(
+        `SELECT COALESCE(SUM((payload->>'durationSeconds')::numeric), 0)::float AS duration` +
+          ` FROM "Event" WHERE "projectId" = $1 AND "eventType" = 'ci.run'` +
+          ` AND payload->>'durationSeconds' ~ '^-?[0-9]+(\\.[0-9]+)?$'`,
+        projectId
+      ),
+    ]);
 
     return {
-      projectId: request.params.projectId,
-      runCount,
-      totalCost,
-      totalDurationSeconds: totalDuration,
+      projectId,
+      runCount: agg._count._all,
+      totalCost: agg._sum.costUsd ?? 0,
+      totalDurationSeconds: durationRows[0]?.duration ?? 0,
     };
   });
 }

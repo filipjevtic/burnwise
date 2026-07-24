@@ -16,6 +16,26 @@ import type { Bucket, TrendPoint } from "./trends.js";
 type EventWhere = Prisma.EventWhereInput;
 
 /**
+ * Overall usage totals for events matching `where`, summed in Postgres over the
+ * denormalized metric columns — the DB-side equivalent of rollupEvents(). Note
+ * durationSeconds reflects session.activity only (like the JS rollup); CI run
+ * durations live in payload and are summed separately where needed.
+ */
+export async function dbRollup(prisma: PrismaClient, where: EventWhere): Promise<Rollup> {
+  const agg = await prisma.event.aggregate({
+    where,
+    _sum: { totalTokens: true, costUsd: true, durationSeconds: true },
+    _count: { _all: true },
+  });
+  return {
+    tokens: agg._sum.totalTokens ?? 0,
+    cost: agg._sum.costUsd ?? 0,
+    durationSeconds: agg._sum.durationSeconds ?? 0,
+    eventCount: agg._count._all,
+  };
+}
+
+/**
  * Group events matching `where` by a scalar column, summing the metrics. Rows
  * with a null group value are skipped unless `nullKey` is given, in which case
  * they are bucketed under it (mirroring the JS rollups' "unknown" fallback).

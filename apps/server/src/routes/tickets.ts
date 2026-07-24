@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyRepl
 import { getPrisma } from "../db.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { assertProjectInWorkspace, assertTicketInWorkspace } from "../middleware/scope.js";
-import { rollupEvents } from "../services/rollup.js";
+import { dbRollup } from "../services/aggregate-db.js";
 import { parsePagination, buildPaginationMeta } from "../lib/pagination.js";
 
 export async function registerTicketRoutes(
@@ -34,14 +34,14 @@ export async function registerTicketRoutes(
     if (!(await assertTicketInWorkspace(prisma, reply, request.params.ticketId, workspaceId))) return;
     const ticket = await prisma.ticket.findUnique({
       where: { id: request.params.ticketId },
-      include: { events: true },
     });
 
     if (!ticket) {
       return reply.status(404).send({ error: "Ticket not found" });
     }
 
-    const rollup = rollupEvents(ticket.events);
+    // Roll up this ticket's events in the DB rather than loading them (#176).
+    const rollup = await dbRollup(prisma, { ticketId: ticket.id });
 
     return {
       ticket: {
