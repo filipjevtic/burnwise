@@ -66,8 +66,9 @@ interface JiraSearchResponse {
   total: number;
 }
 
-export async function syncJira(config: JiraConfig): Promise<{ sprints: number; tickets: number }> {
+export async function syncJira(config: JiraConfig): Promise<{ sprints: number; tickets: number; failed: number }> {
   const prisma = await getPrisma();
+  let failed = 0;
   const baseUrl = config.baseUrl.replace(/\/$/, "");
   const headers = buildHeaders(config.email, config.token);
   const storyPointsField = resolveStoryPointsField(config.storyPointsField);
@@ -114,7 +115,7 @@ export async function syncJira(config: JiraConfig): Promise<{ sprints: number; t
       const issues = await fetchSprintIssues(baseUrl, headers, sprint.id);
       const sprintId = sprintExternalIdToInternalId[sprint.id.toString()];
       for (const issue of issues) {
-        await syncIssue(prisma, config.projectId, sprintId, issue, baseUrl, storyPointsField);
+        failed += await syncIssueSafe(prisma, config.projectId, sprintId, issue, baseUrl, storyPointsField);
       }
     }
   }
@@ -122,14 +123,35 @@ export async function syncJira(config: JiraConfig): Promise<{ sprints: number; t
   // Also sync all project issues that may not be on a sprint board.
   const allIssues = await searchIssues(baseUrl, headers, config.projectKey, storyPointsField);
   for (const issue of allIssues) {
-    await syncIssue(prisma, config.projectId, null, issue, baseUrl, storyPointsField);
+    failed += await syncIssueSafe(prisma, config.projectId, null, issue, baseUrl, storyPointsField);
   }
 
   const tickets = await prisma.ticket.count({
     where: { projectId: config.projectId },
   });
 
-  return { sprints: sprintCount, tickets };
+  return { sprints: sprintCount, tickets, failed };
+}
+
+/**
+ * Run syncIssue without aborting the whole sync on one bad item (#70). Returns 1
+ * if the issue failed to import (logged), 0 otherwise.
+ */
+async function syncIssueSafe(
+  prisma: Awaited<ReturnType<typeof getPrisma>>,
+  projectId: string,
+  sprintId: string | null,
+  issue: JiraIssue,
+  baseUrl: string,
+  storyPointsField: string
+): Promise<number> {
+  try {
+    await syncIssue(prisma, projectId, sprintId, issue, baseUrl, storyPointsField);
+    return 0;
+  } catch (err) {
+    console.warn(`Jira sync: failed to import issue ${issue.key}:`, err instanceof Error ? err.message : err);
+    return 1;
+  }
 }
 
 function buildHeaders(email: string, token: string): Record<string, string> {
