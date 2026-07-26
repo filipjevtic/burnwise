@@ -15,6 +15,8 @@ flowchart TB
         B[API proxy]
         C[CLI]
         D[CI/CD webhooks]
+        Z[MCP server]
+        Y[OTLP traces / cloud logs]
     end
 
     subgraph Server["apps/server Fastify API"]
@@ -44,6 +46,8 @@ flowchart TB
     B -->|LLM events| E
     C -->|session activity| E
     D -->|ci.run| K
+    Z -->|usage events| E
+    Y -->|traces / cloud usage| E
     E -->|validate| F
     F -->|link to ticket| P
     G -->|sync sprints/tickets| P
@@ -89,11 +93,12 @@ erDiagram
 ## Event Flow
 
 1. A developer starts a **session** bound to a ticket (CLI `ats start`, MCP `set_ticket`, IDE, or git branch).
-2. Collectors emit events (IDE, proxy, CLI, CI), authenticated with a personal **API key** (`bw_sk_...`) so the real user and workspace are resolved server-side.
-3. The ingestion API validates the batch schema.
+2. Collectors emit events, authenticated with a personal **API key** (`bw_sk_...`) so the real user and workspace are resolved server-side. Sources include the IDE plugins, API proxy, CLI, CI webhooks, the MCP server, OpenTelemetry (OTLP/HTTP) traces, and cloud invocation logs for Bedrock and Vertex.
+3. The ingestion API validates the batch schema. When `PII_REDACTION` is on, prompt and response text is masked here, before storage.
 4. The association service links each event to a ticket by precedence: explicit session/header ticket > git branch convention > prompt/metadata extraction.
-5. Events are persisted in PostgreSQL, grouped under their session.
-6. The dashboard derives velocity (committed vs completed points), efficiency (effort per completed point), session/trace rollups, and a velocity-based capacity recommendation, all from the shared event-rollup math.
+5. Events are persisted in PostgreSQL, grouped under their session, with aggregation metrics denormalized into columns so analytics roll up in the database (#176).
+6. Any matching outbound webhook subscriptions receive an HMAC-signed delivery, without blocking the ingest response.
+7. The dashboard derives velocity (committed vs completed points), efficiency (effort per completed point), session/trace rollups, and a velocity-based capacity recommendation, all from the shared event-rollup math.
 
 ## Sprint-planning analytics
 
@@ -163,4 +168,4 @@ flowchart LR
     Proxy -->|events| Server
 ```
 
-See [SELFHOST.md](SELFHOST.md) for detailed deployment instructions.
+The same components also run on Kubernetes via the [Helm chart](../charts/burnwise) (with a pre-install migration Job), or through the [Terraform module](../terraform) that wraps it. See [SELFHOST.md](SELFHOST.md) for detailed deployment instructions.

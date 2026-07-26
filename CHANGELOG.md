@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0-alpha] - 2026-07-26
+
+First alpha. Single-node, single-workspace self-host; expect rough edges.
+
+### Added
+- Kubernetes deployment: a Helm chart (server, web, proxy, and a migration Job, all running as hardened non-root containers) plus a Terraform module that installs the chart on any cluster (#22).
+- Operator pricing overrides via `BURNWISE_PRICING_JSON` / `BURNWISE_PRICING_FILE`, so you can add or correct model rates without a code change (#141).
+- Configurable event retention: set `EVENT_RETENTION_DAYS` and a daily purge deletes events past the window (#27).
+- PII redaction: set `PII_REDACTION=true` to mask emails, secret keys, and card/SSN numbers in stored prompt and response text before it lands in the database (#27).
+- Integration UX: the connect form now pre-fills from saved config, a Test connection button checks credentials before a full sync, and GitHub Enterprise Server base URLs are supported (#70).
+
+### Changed
+- The web image calls the API on its own origin and nginx proxies `/api` to the server, so one built image works unchanged in dev, Docker Compose, and Kubernetes (#22).
+- Re-syncing an integration reuses the stored token when you leave the field blank, instead of wiping it (#70).
+
+### Fixed
+- Integration syncs count and report per-item import failures instead of aborting on the first bad issue (#70).
+- Full repo URLs pasted into the owner/repo fields are normalized to `owner/repo` (#70).
+
+### Security
+- The server refuses to boot in production (`NODE_ENV=production`) when `JWT_SECRET` is unset or left at the dev default, and warns on the default ingest key and a missing encryption key (#265).
+- Bumped postcss to a patched release; documented a react-router advisory that does not apply to the client-side SPA.
+
+## [0.3.0] - 2026-07-24
+
+### Added
+- OpenTelemetry (OTLP/HTTP) GenAI trace ingestion, an Anthropic Messages API proxy with automatic provider detection, and cloud-log ingestion for AWS Bedrock and GCP Vertex AI, so usage from more tools lands in one place.
+- Outbound webhooks: per-project subscriptions that receive HMAC-signed event deliveries (#21).
+- An OpenAPI 3 spec generated from the live route table at `/openapi.json`, with a rendered viewer at `/docs` (#21).
+- Local-only mode (`LOCAL_ONLY=true`) that blocks all outbound egress and disables SSO, so nothing leaves the machine (#23).
+- An immutable audit log with an admin viewer, covering association overrides, team changes, and credential/integration changes (#20).
+- Manual trace resolution (endpoints and UI) and rejection rules that auto-hide recurring noise from the unresolved queue (#24).
+- Analytics: a cross-project portfolio view, by-tool and by-provider effort breakdowns, an estimate-calibration report, and a sprint-commit recommendation.
+- Per-project CI webhook secrets with provider pinning, and CI cost estimated from the actual runner rather than a fixed default (#183).
+- Zero-context MCP usage reporting via a Claude Code hook, and delta-based token attribution for multi-task sessions.
+- A configurable external trace-viewer deep link, per-session trace summaries, and a configurable Jira story-points field (#8).
+
+### Changed
+- Analytics and forecasting aggregate in PostgreSQL using denormalized metric columns and DB-side rollups, instead of loading event payloads into Node (#176).
+- Documentation repositioned around cross-tool AI-delivery analytics rather than spend; prose humanized throughout.
+- Refreshed the dashboard's dark, technical UI.
+
+### Security
+- Blocked SSRF through user-controlled integration URLs and added timeouts to integration fetches.
+- Restricted CORS to an allow-list in production and made CI webhooks fail closed when the secret is unset in production.
+- Neutralized CSV formula injection in exports and scoped ticket/session association to the event's own project.
+- Closed an invite-acceptance account-takeover path (#170, #178) and hardened OAuth (CSRF state, email verification, domain allow-list, configurable redirect).
+- Patched HIGH CVEs in `fast-uri` and `find-my-way`.
+
+### Fixed
+- Normalized GitLab issue states to canonical statuses, extracted text from all Jira ADF node types, made CI run events idempotent, and guarded web data hooks against stale/out-of-order responses.
+
 ## [0.2.0] - 2026-06-30
 
 ### Added
