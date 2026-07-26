@@ -44,6 +44,7 @@ export function IntegrationsPage({
   const [githubOwner, setGithubOwner] = useState("");
   const [githubRepo, setGithubRepo] = useState("");
   const [githubToken, setGithubToken] = useState("");
+  const [githubBaseUrl, setGithubBaseUrl] = useState("");
 
   const [jiraBaseUrl, setJiraBaseUrl] = useState("");
   const [jiraEmail, setJiraEmail] = useState("");
@@ -59,6 +60,28 @@ export function IntegrationsPage({
   const [error, setError] = useState<string | null>(null);
   const [openIntegration, setOpenIntegration] = useState<string | null>("github");
   const [savedProvider, setSavedProvider] = useState<string | null>(null);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ provider: string; ok: boolean; message: string } | null>(null);
+
+  // Test a connection without persisting or syncing (#70). The body carries the
+  // current form fields; a blank token reuses the stored one server-side.
+  async function handleTest(provider: string, body: Record<string, unknown>) {
+    setTesting(provider);
+    setTestResult(null);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/integrations/test/${projectId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader },
+        body: JSON.stringify({ provider, ...body }),
+      });
+      const data = await res.json().catch(() => ({ ok: false, message: "Test failed" }));
+      setTestResult({ provider, ok: Boolean(data.ok), message: data.message ?? (data.ok ? "Connected." : "Test failed") });
+    } catch (err) {
+      setTestResult({ provider, ok: false, message: err instanceof Error ? err.message : "Test failed" });
+    } finally {
+      setTesting(null);
+    }
+  }
 
   // Pre-populate the form with the saved config (#70). The token is never
   // returned; hasToken tells us one is stored so we can leave the field blank.
@@ -76,6 +99,8 @@ export function IntegrationsPage({
         const [owner, repo] = (cfg.repository ?? "").split("/");
         setGithubOwner(owner ?? "");
         setGithubRepo(repo ?? "");
+        // Only surface an Enterprise host; public github.com stays the default (blank).
+        setGithubBaseUrl(cfg.baseUrl && cfg.baseUrl !== "https://github.com" ? cfg.baseUrl : "");
       } else if (cfg.provider === "jira") {
         setJiraBaseUrl(cfg.baseUrl ?? "");
         setJiraProjectKey(cfg.projectKey ?? "");
@@ -105,6 +130,7 @@ export function IntegrationsPage({
           owner: githubOwner,
           repo: githubRepo,
           token: githubToken || undefined,
+          baseUrl: githubBaseUrl.trim() || undefined,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -170,6 +196,14 @@ export function IntegrationsPage({
       setSyncing(false);
     }
   }
+
+  const testResultNote = (provider: string) =>
+    testResult && testResult.provider === provider ? (
+      <p className={`text-xs ${testResult.ok ? "text-green-600 dark:text-green-500" : "text-destructive"}`}>
+        {testResult.ok ? "✓ " : "✗ "}
+        {testResult.message}
+      </p>
+    ) : null;
 
   return (
     <div className="space-y-6">
@@ -241,9 +275,39 @@ export function IntegrationsPage({
                           placeholder={savedProvider === "github" ? "Saved — leave blank to keep" : undefined}
                         />
                       </div>
-                      <Button type="submit" disabled={syncing || !githubOwner || !githubRepo || !isAdmin}>
-                        {syncing ? "Syncing..." : "Sync from GitHub"}
-                      </Button>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="githubBaseUrl">Enterprise base URL (optional)</Label>
+                        <Input
+                          id="githubBaseUrl"
+                          value={githubBaseUrl}
+                          onChange={(e) => setGithubBaseUrl(e.target.value)}
+                          placeholder="https://github.example.com"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          For GitHub Enterprise Server. Leave blank to use github.com.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button type="submit" disabled={syncing || !githubOwner || !githubRepo || !isAdmin}>
+                          {syncing ? "Syncing..." : "Sync from GitHub"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={testing === "github" || !githubOwner || !githubRepo || !isAdmin}
+                          onClick={() =>
+                            handleTest("github", {
+                              owner: githubOwner,
+                              repo: githubRepo,
+                              token: githubToken || undefined,
+                              baseUrl: githubBaseUrl.trim() || undefined,
+                            })
+                          }
+                        >
+                          {testing === "github" ? "Testing..." : "Test connection"}
+                        </Button>
+                      </div>
+                      {testResultNote("github")}
                     </form>
                   )}
                   {integration.id === "jira" && integration.status === "ready" && (
@@ -297,12 +361,29 @@ export function IntegrationsPage({
                           Jira instances assign different custom field IDs for story points. Leave blank to use the common default.
                         </p>
                       </div>
-                      <Button
-                        type="submit"
-                        disabled={syncing || !jiraBaseUrl || !jiraEmail || !jiraProjectKey || (!jiraToken && savedProvider !== "jira") || !isAdmin}
-                      >
-                        {syncing ? "Syncing..." : "Sync from Jira"}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="submit"
+                          disabled={syncing || !jiraBaseUrl || !jiraEmail || !jiraProjectKey || (!jiraToken && savedProvider !== "jira") || !isAdmin}
+                        >
+                          {syncing ? "Syncing..." : "Sync from Jira"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={testing === "jira" || !jiraBaseUrl || !jiraEmail || (!jiraToken && savedProvider !== "jira") || !isAdmin}
+                          onClick={() =>
+                            handleTest("jira", {
+                              baseUrl: jiraBaseUrl,
+                              email: jiraEmail,
+                              token: jiraToken || undefined,
+                            })
+                          }
+                        >
+                          {testing === "jira" ? "Testing..." : "Test connection"}
+                        </Button>
+                      </div>
+                      {testResultNote("jira")}
                     </form>
                   )}
                   {integration.id === "gitlab" && integration.status === "ready" && (
@@ -335,12 +416,29 @@ export function IntegrationsPage({
                           placeholder="group/project"
                         />
                       </div>
-                      <Button
-                        type="submit"
-                        disabled={syncing || !gitlabBaseUrl || !gitlabProjectPath || (!gitlabToken && savedProvider !== "gitlab") || !isAdmin}
-                      >
-                        {syncing ? "Syncing..." : "Sync from GitLab"}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="submit"
+                          disabled={syncing || !gitlabBaseUrl || !gitlabProjectPath || (!gitlabToken && savedProvider !== "gitlab") || !isAdmin}
+                        >
+                          {syncing ? "Syncing..." : "Sync from GitLab"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={testing === "gitlab" || !gitlabBaseUrl || !gitlabProjectPath || (!gitlabToken && savedProvider !== "gitlab") || !isAdmin}
+                          onClick={() =>
+                            handleTest("gitlab", {
+                              baseUrl: gitlabBaseUrl,
+                              token: gitlabToken || undefined,
+                              projectPath: gitlabProjectPath,
+                            })
+                          }
+                        >
+                          {testing === "gitlab" ? "Testing..." : "Test connection"}
+                        </Button>
+                      </div>
+                      {testResultNote("gitlab")}
                     </form>
                   )}
                 </CardContent>

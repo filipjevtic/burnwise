@@ -56,6 +56,19 @@ export function parseGitHubRepo(ownerInput: string, repoInput: string): { owner:
   return null;
 }
 
+/**
+ * Derive the GitHub REST API base from a web host (#70). Public GitHub uses the
+ * dedicated api.github.com host; GitHub Enterprise Server serves the API under
+ * `<host>/api/v3`. A blank/github.com host maps to the public API.
+ */
+export function githubApiBase(webHost?: string): string {
+  const host = (webHost || "").trim().replace(/\/+$/, "");
+  if (!host || host === "https://github.com" || host === "http://github.com") {
+    return "https://api.github.com";
+  }
+  return `${host}/api/v3`;
+}
+
 /** Normalize a GitLab project path ("group/subgroup/project"), stripping any URL. */
 export function parseGitLabProjectPath(input: string): string | null {
   const path = toPath(input || "");
