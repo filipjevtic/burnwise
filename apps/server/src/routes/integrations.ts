@@ -7,7 +7,7 @@ import { encryptSecret, decryptSecret } from "../lib/crypto.js";
 import { assertSafeIntegrationUrl, SsrfError } from "../lib/ssrf.js";
 import { FetchTimeoutError, fetchWithTimeout } from "../lib/fetch-timeout.js";
 import { recordAudit } from "../services/audit.js";
-import { parseGitHubRepo, parseGitLabProjectPath, githubApiBase } from "../lib/repo-url.js";
+import { parseGitHubRepo, parseGitLabProjectPath, githubApiBase, stripTrailingSlashes } from "../lib/repo-url.js";
 
 export async function registerIntegrationRoutes(
   app: FastifyInstance,
@@ -81,7 +81,7 @@ export async function registerIntegrationRoutes(
     const { owner, repo } = parsed;
 
     // GitHub Enterprise Server host (#70); blank means public github.com.
-    const webHost = (request.body.baseUrl || "https://github.com").replace(/\/+$/, "");
+    const webHost = stripTrailingSlashes(request.body.baseUrl || "https://github.com");
     const isEnterprise = webHost !== "https://github.com" && webHost !== "http://github.com";
 
     if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
@@ -278,7 +278,7 @@ export async function registerIntegrationRoutes(
       if (provider === "github") {
         const parsed = parseGitHubRepo(request.body.owner || "", request.body.repo || "");
         if (!parsed) return reply.status(400).send({ ok: false, message: "Provide owner and repo." });
-        const webHost = (request.body.baseUrl || "https://github.com").replace(/\/+$/, "");
+        const webHost = stripTrailingSlashes(request.body.baseUrl || "https://github.com");
         if (webHost !== "https://github.com" && webHost !== "http://github.com") {
           const bad = await guard(webHost);
           if (bad) return reply.send({ ok: false, message: bad });
@@ -296,12 +296,12 @@ export async function registerIntegrationRoutes(
         const bad = await guard(baseUrl);
         if (bad) return reply.send({ ok: false, message: bad });
         const auth = Buffer.from(`${email}:${token}`).toString("base64");
-        const res = await fetchWithTimeout(`${baseUrl.replace(/\/+$/, "")}/rest/api/3/myself`, { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } }, TEST_TIMEOUT_MS);
+        const res = await fetchWithTimeout(`${stripTrailingSlashes(baseUrl)}/rest/api/3/myself`, { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } }, TEST_TIMEOUT_MS);
         return res.ok ? { ok: true, message: "Jira credentials verified." } : { ok: false, message: explain(res.status) };
       }
 
       if (provider === "gitlab") {
-        const baseUrl = (request.body.baseUrl || "https://gitlab.com").replace(/\/+$/, "");
+        const baseUrl = stripTrailingSlashes(request.body.baseUrl || "https://gitlab.com");
         const projectPath = parseGitLabProjectPath(request.body.projectPath || "");
         if (!projectPath) return reply.status(400).send({ ok: false, message: "projectPath must be group/project." });
         if (!token) return reply.status(400).send({ ok: false, message: "token is required." });

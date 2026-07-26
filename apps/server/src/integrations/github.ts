@@ -1,5 +1,6 @@
 import { getPrisma } from "../db.js";
 import { fetchWithTimeout } from "../lib/fetch-timeout.js";
+import { stripTrailingSlashes } from "../lib/repo-url.js";
 
 interface GitHubMilestone {
   number: number;
@@ -55,7 +56,7 @@ export async function syncGitHub(config: GitHubConfig): Promise<{
     headers.Authorization = `Bearer ${config.token}`;
   }
 
-  const apiBase = (config.apiBaseUrl || "https://api.github.com").replace(/\/+$/, "");
+  const apiBase = stripTrailingSlashes(config.apiBaseUrl || "https://api.github.com");
   const baseUrl = `${apiBase}/repos/${config.owner}/${config.repo}`;
 
   const milestones = await fetchAllPages<GitHubMilestone>(`${baseUrl}/milestones?state=all&per_page=100`, headers);

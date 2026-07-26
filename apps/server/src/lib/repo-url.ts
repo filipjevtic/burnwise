@@ -57,12 +57,22 @@ export function parseGitHubRepo(ownerInput: string, repoInput: string): { owner:
 }
 
 /**
+ * Strip trailing slashes with plain string ops (no regex) so it can't be a
+ * ReDoS target on hostile input like "////…" (#70).
+ */
+export function stripTrailingSlashes(input: string): string {
+  let s = input;
+  while (s.endsWith("/")) s = s.slice(0, -1);
+  return s;
+}
+
+/**
  * Derive the GitHub REST API base from a web host (#70). Public GitHub uses the
  * dedicated api.github.com host; GitHub Enterprise Server serves the API under
  * `<host>/api/v3`. A blank/github.com host maps to the public API.
  */
 export function githubApiBase(webHost?: string): string {
-  const host = (webHost || "").trim().replace(/\/+$/, "");
+  const host = stripTrailingSlashes((webHost || "").trim());
   if (!host || host === "https://github.com" || host === "http://github.com") {
     return "https://api.github.com";
   }
