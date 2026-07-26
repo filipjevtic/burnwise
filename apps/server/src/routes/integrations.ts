@@ -7,6 +7,7 @@ import { encryptSecret } from "../lib/crypto.js";
 import { assertSafeIntegrationUrl, SsrfError } from "../lib/ssrf.js";
 import { FetchTimeoutError } from "../lib/fetch-timeout.js";
 import { recordAudit } from "../services/audit.js";
+import { parseGitHubRepo, parseGitLabProjectPath } from "../lib/repo-url.js";
 
 export async function registerIntegrationRoutes(
   app: FastifyInstance,
@@ -47,11 +48,15 @@ export async function registerIntegrationRoutes(
   // bypass).
   app.post<{ Params: { projectId: string }; Body: { token?: string; owner: string; repo: string } }>("/github/:projectId", { preHandler: requireAuth }, async (request, reply) => {
     const { projectId } = request.params;
-    const { token, owner, repo } = request.body;
+    const { token } = request.body;
 
-    if (!owner || !repo) {
-      return reply.status(400).send({ error: "owner and repo are required" });
+    // Accept a full github.com URL or "owner/repo" in either field (#70) and
+    // normalize to bare owner + repo so the GitHub API doesn't 404.
+    const parsed = parseGitHubRepo(request.body.owner || "", request.body.repo || "");
+    if (!parsed) {
+      return reply.status(400).send({ error: "Provide the repository as owner and repo (or a github.com URL)" });
     }
+    const { owner, repo } = parsed;
 
     if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
 
@@ -137,10 +142,15 @@ export async function registerIntegrationRoutes(
 
   app.post<{ Params: { projectId: string }; Body: { baseUrl?: string; token: string; projectPath: string } }>("/gitlab/:projectId", { preHandler: requireAuth }, async (request, reply) => {
     const { projectId } = request.params;
-    const { baseUrl = "https://gitlab.com", token, projectPath } = request.body;
+    const { baseUrl = "https://gitlab.com", token } = request.body;
 
-    if (!token || !projectPath) {
-      return reply.status(400).send({ error: "token and projectPath are required" });
+    if (!token) {
+      return reply.status(400).send({ error: "token is required" });
+    }
+    // Accept a full GitLab URL or "group/project" and normalize (#70).
+    const projectPath = parseGitLabProjectPath(request.body.projectPath || "");
+    if (!projectPath) {
+      return reply.status(400).send({ error: "projectPath must be group/project (or a GitLab URL)" });
     }
 
     if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
