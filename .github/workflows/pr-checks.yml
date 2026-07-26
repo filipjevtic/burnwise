@@ -77,7 +77,7 @@ jobs:
           DATABASE_URL: postgresql://ats:ats@localhost:5432/ats
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
