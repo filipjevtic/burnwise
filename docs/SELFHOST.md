@@ -214,6 +214,21 @@ Put the web dashboard and server behind Nginx, Caddy, or Traefik. Set the follow
 
 Back up the PostgreSQL database regularly. The `Event` table will grow over time, so plan a retention policy.
 
+## Data retention
+
+To enforce a rolling retention window, set `EVENT_RETENTION_DAYS` (#27). A daily
+in-process sweep deletes raw events older than that many days:
+
+```bash
+EVENT_RETENTION_DAYS=90   # keep 90 days of events; 0 or unset = keep forever
+```
+
+The purge runs at startup and every 24h, so no external cron is needed. Only the
+raw `Event` rows are removed; derived tickets/sprints and the aggregates stored
+on each event are unaffected beyond the deleted rows. For very large tables,
+prefer an external batched delete so a single sweep doesn't hold a long
+transaction.
+
 ## Updates
 
 ```bash
