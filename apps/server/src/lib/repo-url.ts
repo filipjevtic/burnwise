@@ -5,13 +5,26 @@
  * "group/project", which then 404. This strips them to the canonical form.
  */
 
-/** Strip a git host URL / .git suffix / slashes down to the "a/b/..." path. */
+/**
+ * Strip a git host URL / .git suffix / slashes down to the "a/b/..." path.
+ * Uses plain string ops (no regex) so it can't be a ReDoS target on hostile
+ * input.
+ */
 function toPath(input: string): string {
   let s = input.trim();
-  // Drop scheme + host: https://github.com/foo/bar or git@github.com:foo/bar
-  s = s.replace(/^[a-z]+:\/\/[^/]+\//i, "").replace(/^git@[^:]+:/i, "");
-  s = s.replace(/\.git$/i, "");
-  s = s.replace(/^\/+/, "").replace(/\/+$/, "");
+  const scheme = s.indexOf("://");
+  if (scheme !== -1) {
+    // Drop "scheme://host"; keep everything after the first slash past it.
+    const slash = s.indexOf("/", scheme + 3);
+    s = slash === -1 ? "" : s.slice(slash + 1);
+  } else if (s.startsWith("git@")) {
+    // git@host:owner/repo -> owner/repo
+    const colon = s.indexOf(":");
+    if (colon !== -1) s = s.slice(colon + 1);
+  }
+  if (s.toLowerCase().endsWith(".git")) s = s.slice(0, -4);
+  while (s.startsWith("/")) s = s.slice(1);
+  while (s.endsWith("/")) s = s.slice(0, -1);
   return s;
 }
 
