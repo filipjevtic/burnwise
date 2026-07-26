@@ -33,5 +33,8 @@ jobs:
         with:
           generate_release_notes: true
           config-file: .github/release.yml
+          # Tags with a prerelease segment (v0.4.0-alpha, -beta, -rc) are marked
+          # prerelease so they don't take the "Latest" badge from a stable release.
+          prerelease: ${{ contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
