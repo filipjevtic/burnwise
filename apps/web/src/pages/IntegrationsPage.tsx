@@ -421,16 +421,12 @@ export function IntegrationsPage({
                           placeholder={savedProvider === "gitlab" ? "Saved — leave blank to keep" : undefined}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Needs the <code>read_api</code> scope.{" "}
-                          <a
-                            href={`${gitlabBaseUrl.endsWith("/") ? gitlabBaseUrl.slice(0, -1) : gitlabBaseUrl}/-/user_settings/personal_access_tokens`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="underline"
-                          >
-                            Create a token
+                          Needs the <code>read_api</code> scope. Create one on your GitLab instance under{" "}
+                          <code>/-/user_settings/personal_access_tokens</code> (
+                          <a href="https://docs.gitlab.com/user/profile/personal_access_tokens/" target="_blank" rel="noreferrer" className="underline">
+                            docs
                           </a>
-                          .
+                          ).
                         </p>
                       </div>
                       <div className="grid gap-1.5">
