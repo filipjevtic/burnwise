@@ -3,7 +3,7 @@ import { getPrisma } from "../db.js";
 import { syncGitHub, syncJira, syncGitLab } from "../integrations/index.js";
 import { requireAuth, type AuthPayload } from "../middleware/auth.js";
 import { requireProjectRole } from "../middleware/rbac.js";
-import { encryptSecret } from "../lib/crypto.js";
+import { encryptSecret, decryptSecret } from "../lib/crypto.js";
 import { assertSafeIntegrationUrl, SsrfError } from "../lib/ssrf.js";
 import { FetchTimeoutError } from "../lib/fetch-timeout.js";
 import { recordAudit } from "../services/audit.js";
@@ -44,6 +44,28 @@ export async function registerIntegrationRoutes(
     }
   }
 
+  // Effective token for a sync: prefer the one just entered; otherwise reuse the
+  // stored (encrypted) token so a saved config can re-sync without re-entering it
+  // (#70). Returns undefined when neither exists.
+  async function resolveToken(projectId: string, bodyToken?: string): Promise<string | undefined> {
+    if (bodyToken) return bodyToken;
+    const cfg = await prisma.issueTrackerConfig.findUnique({ where: { projectId }, select: { apiToken: true } });
+    return decryptSecret(cfg?.apiToken) ?? undefined;
+  }
+
+  // Return the saved config so the UI can pre-populate the form (#70). Never
+  // returns the token itself — only whether one is stored (hasToken) so the
+  // form can show it as already configured.
+  app.get<{ Params: { projectId: string } }>("/config/:projectId", { preHandler: requireAuth }, async (request, reply) => {
+    const cfg = await prisma.issueTrackerConfig.findUnique({
+      where: { projectId: request.params.projectId },
+      select: { provider: true, baseUrl: true, repository: true, projectKey: true, storyPointsField: true, apiToken: true },
+    });
+    if (!cfg) return reply.status(404).send({ error: "No integration configured" });
+    const { apiToken, ...rest } = cfg;
+    return { ...rest, hasToken: Boolean(apiToken) };
+  });
+
   // Configuring/syncing an integration requires project admin (workspace admins
   // bypass).
   app.post<{ Params: { projectId: string }; Body: { token?: string; owner: string; repo: string } }>("/github/:projectId", { preHandler: requireAuth }, async (request, reply) => {
@@ -60,13 +82,18 @@ export async function registerIntegrationRoutes(
 
     if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
 
+    // Reuse the stored token when the field is left blank (re-sync of a saved
+    // config). Only overwrite apiToken when a new one is supplied (#70).
+    const effectiveToken = await resolveToken(projectId, token);
+    const tokenUpdate = token ? { apiToken: encryptSecret(token) } : {};
+
     await prisma.issueTrackerConfig.upsert({
       where: { projectId },
       update: {
         provider: "github",
         baseUrl: `https://github.com/${owner}/${repo}`,
-        apiToken: encryptSecret(token),
         repository: `${owner}/${repo}`,
+        ...tokenUpdate,
       },
       create: {
         projectId,
@@ -79,7 +106,7 @@ export async function registerIntegrationRoutes(
     await auditConnect(request, projectId, "github", `https://github.com/${owner}/${repo}`);
 
     const result = await runSync(reply, () => syncGitHub({
-      token: token || "",
+      token: effectiveToken || "",
       owner,
       repo,
       projectId,
@@ -94,8 +121,8 @@ export async function registerIntegrationRoutes(
     const { baseUrl, email, token, projectKey } = request.body;
     const storyPointsField = request.body.storyPointsField?.trim() || null;
 
-    if (!baseUrl || !email || !token || !projectKey) {
-      return reply.status(400).send({ error: "baseUrl, email, token, and projectKey are required" });
+    if (!baseUrl || !email || !projectKey) {
+      return reply.status(400).send({ error: "baseUrl, email, and projectKey are required" });
     }
 
     if (!(await requireProjectRole(prisma, request, reply, projectId, "admin"))) return;
@@ -107,14 +134,19 @@ export async function registerIntegrationRoutes(
       throw err;
     }
 
+    // Reuse the stored token when blank (re-sync of a saved config) (#70).
+    const effectiveToken = await resolveToken(projectId, token);
+    if (!effectiveToken) return reply.status(400).send({ error: "token is required" });
+    const tokenUpdate = token ? { apiToken: encryptSecret(token) } : {};
+
     await prisma.issueTrackerConfig.upsert({
       where: { projectId },
       update: {
         provider: "jira",
         baseUrl,
-        apiToken: encryptSecret(token),
         projectKey,
         storyPointsField,
+        ...tokenUpdate,
       },
       create: {
         projectId,
@@ -130,7 +162,7 @@ export async function registerIntegrationRoutes(
     const result = await runSync(reply, () => syncJira({
       baseUrl,
       email,
-      token,
+      token: effectiveToken,
       projectKey,
       projectId,
       storyPointsField,
@@ -144,9 +176,6 @@ export async function registerIntegrationRoutes(
     const { projectId } = request.params;
     const { baseUrl = "https://gitlab.com", token } = request.body;
 
-    if (!token) {
-      return reply.status(400).send({ error: "token is required" });
-    }
     // Accept a full GitLab URL or "group/project" and normalize (#70).
     const projectPath = parseGitLabProjectPath(request.body.projectPath || "");
     if (!projectPath) {
@@ -162,13 +191,18 @@ export async function registerIntegrationRoutes(
       throw err;
     }
 
+    // Reuse the stored token when blank (re-sync of a saved config) (#70).
+    const effectiveToken = await resolveToken(projectId, token);
+    if (!effectiveToken) return reply.status(400).send({ error: "token is required" });
+    const tokenUpdate = token ? { apiToken: encryptSecret(token) } : {};
+
     await prisma.issueTrackerConfig.upsert({
       where: { projectId },
       update: {
         provider: "gitlab",
         baseUrl,
-        apiToken: encryptSecret(token),
         repository: projectPath,
+        ...tokenUpdate,
       },
       create: {
         projectId,
@@ -182,7 +216,7 @@ export async function registerIntegrationRoutes(
 
     const result = await runSync(reply, () => syncGitLab({
       baseUrl,
-      token,
+      token: effectiveToken,
       projectPath,
       projectId,
     }));

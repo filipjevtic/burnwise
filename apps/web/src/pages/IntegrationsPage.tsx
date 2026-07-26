@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardTitle } from "../components/ui/card.js";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "../components/ui/button.js";
@@ -58,6 +58,39 @@ export function IntegrationsPage({
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openIntegration, setOpenIntegration] = useState<string | null>("github");
+  const [savedProvider, setSavedProvider] = useState<string | null>(null);
+
+  // Pre-populate the form with the saved config (#70). The token is never
+  // returned; hasToken tells us one is stored so we can leave the field blank.
+  useEffect(() => {
+    if (!projectId || !token) return;
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`${API_URL}/api/v1/integrations/config/${projectId}`, { headers: authHeader });
+      if (!res.ok || cancelled) return;
+      const cfg = await res.json();
+      if (cancelled) return;
+      setSavedProvider(cfg.provider);
+      setOpenIntegration(cfg.provider);
+      if (cfg.provider === "github") {
+        const [owner, repo] = (cfg.repository ?? "").split("/");
+        setGithubOwner(owner ?? "");
+        setGithubRepo(repo ?? "");
+      } else if (cfg.provider === "jira") {
+        setJiraBaseUrl(cfg.baseUrl ?? "");
+        setJiraProjectKey(cfg.projectKey ?? "");
+        setJiraStoryPointsField(cfg.storyPointsField ?? "");
+      } else if (cfg.provider === "gitlab") {
+        setGitlabBaseUrl(cfg.baseUrl ?? "https://gitlab.com");
+        setGitlabProjectPath(cfg.repository ?? "");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // authHeader is derived from token; projectId + token are the real inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, token]);
 
   async function handleGitHubSync(e: React.FormEvent) {
     e.preventDefault();
@@ -86,7 +119,8 @@ export function IntegrationsPage({
 
   async function handleJiraSync(e: React.FormEvent) {
     e.preventDefault();
-    if (!jiraBaseUrl || !jiraEmail || !jiraToken || !jiraProjectKey) return;
+    if (!jiraBaseUrl || !jiraEmail || !jiraProjectKey) return;
+    if (!jiraToken && savedProvider !== "jira") return;
     setSyncing(true);
     setError(null);
     try {
@@ -96,7 +130,7 @@ export function IntegrationsPage({
         body: JSON.stringify({
           baseUrl: jiraBaseUrl,
           email: jiraEmail,
-          token: jiraToken,
+          token: jiraToken || undefined,
           projectKey: jiraProjectKey,
           storyPointsField: jiraStoryPointsField.trim() || undefined,
         }),
@@ -113,7 +147,8 @@ export function IntegrationsPage({
 
   async function handleGitLabSync(e: React.FormEvent) {
     e.preventDefault();
-    if (!gitlabBaseUrl || !gitlabToken || !gitlabProjectPath) return;
+    if (!gitlabBaseUrl || !gitlabProjectPath) return;
+    if (!gitlabToken && savedProvider !== "gitlab") return;
     setSyncing(true);
     setError(null);
     try {
@@ -122,7 +157,7 @@ export function IntegrationsPage({
         headers: { "Content-Type": "application/json", ...authHeader },
         body: JSON.stringify({
           baseUrl: gitlabBaseUrl,
-          token: gitlabToken,
+          token: gitlabToken || undefined,
           projectPath: gitlabProjectPath,
         }),
       });
@@ -203,6 +238,7 @@ export function IntegrationsPage({
                           type="password"
                           value={githubToken}
                           onChange={(e) => setGithubToken(e.target.value)}
+                          placeholder={savedProvider === "github" ? "Saved — leave blank to keep" : undefined}
                         />
                       </div>
                       <Button type="submit" disabled={syncing || !githubOwner || !githubRepo || !isAdmin}>
@@ -237,6 +273,7 @@ export function IntegrationsPage({
                           type="password"
                           value={jiraToken}
                           onChange={(e) => setJiraToken(e.target.value)}
+                          placeholder={savedProvider === "jira" ? "Saved — leave blank to keep" : undefined}
                         />
                       </div>
                       <div className="grid gap-1.5">
@@ -262,7 +299,7 @@ export function IntegrationsPage({
                       </div>
                       <Button
                         type="submit"
-                        disabled={syncing || !jiraBaseUrl || !jiraEmail || !jiraToken || !jiraProjectKey || !isAdmin}
+                        disabled={syncing || !jiraBaseUrl || !jiraEmail || !jiraProjectKey || (!jiraToken && savedProvider !== "jira") || !isAdmin}
                       >
                         {syncing ? "Syncing..." : "Sync from Jira"}
                       </Button>
@@ -286,6 +323,7 @@ export function IntegrationsPage({
                           type="password"
                           value={gitlabToken}
                           onChange={(e) => setGitlabToken(e.target.value)}
+                          placeholder={savedProvider === "gitlab" ? "Saved — leave blank to keep" : undefined}
                         />
                       </div>
                       <div className="grid gap-1.5">
@@ -299,7 +337,7 @@ export function IntegrationsPage({
                       </div>
                       <Button
                         type="submit"
-                        disabled={syncing || !gitlabBaseUrl || !gitlabToken || !gitlabProjectPath || !isAdmin}
+                        disabled={syncing || !gitlabBaseUrl || !gitlabProjectPath || (!gitlabToken && savedProvider !== "gitlab") || !isAdmin}
                       >
                         {syncing ? "Syncing..." : "Sync from GitLab"}
                       </Button>
