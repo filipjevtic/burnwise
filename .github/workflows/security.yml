@@ -22,7 +22,7 @@ jobs:
       security-events: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Report everything (dependencies + IaC/config) to the Security tab.
       - name: Trivy scan (SARIF report)
