@@ -11,7 +11,7 @@ import { useAuth } from "../context/auth.js";
 import { Input } from "../components/ui/input.js";
 import { Inbox, X } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+import { API_URL } from "../lib/api-url.js";
 
 interface TicketOption {
   id: string;

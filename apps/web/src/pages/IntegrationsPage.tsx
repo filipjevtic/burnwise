@@ -8,7 +8,7 @@ import { Badge } from "../components/ui/badge.js";
 import { PageHeader, ErrorNote } from "../components/ui/page.js";
 import { useAuth } from "../context/auth.js";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+import { API_URL } from "../lib/api-url.js";
 
 const integrations = [
   {

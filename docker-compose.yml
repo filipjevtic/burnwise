@@ -67,7 +67,8 @@ services:
       dockerfile: apps/web/Dockerfile
     container_name: burnwise-web
     environment:
-      VITE_API_URL: http://localhost:3000
+      # Same-origin: the SPA calls /api on its own host; nginx proxies to server.
+      BURNWISE_SERVER_URL: http://server:3000
     ports:
       - "8080:8080"
     depends_on:
