@@ -10,7 +10,7 @@ import { AlertCircle } from "lucide-react";
 import { SSOButtons } from "../components/auth/SSOButtons.js";
 import { useAuthProviders } from "../hooks/use-auth-providers.js";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+import { API_URL } from "../lib/api-url.js";
 
 interface InviteInfo {
   token: string;

@@ -1,6 +1,6 @@
 import { Button } from "../ui/button.js";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+import { API_URL } from "../../lib/api-url.js";
 
 export interface AuthProviders {
   github: boolean;

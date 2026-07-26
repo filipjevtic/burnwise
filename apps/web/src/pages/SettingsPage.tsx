@@ -13,7 +13,7 @@ import { useAuth } from "../context/auth.js";
 import { Wallet, Users, Link2, Copy, Check, KeyRound, Trash2 } from "lucide-react";
 import { cn } from "../lib/utils.js";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+import { API_URL } from "../lib/api-url.js";
 
 const ROLES: TeamRole[] = ["owner", "admin", "member", "viewer"];
 

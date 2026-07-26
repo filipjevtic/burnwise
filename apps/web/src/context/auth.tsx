@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+import { API_URL } from "../lib/api-url.js";
 const TOKEN_KEY = "burnwise_token";
 
 export interface AuthUser {
