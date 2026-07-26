@@ -25,8 +25,11 @@
 - [x] **Track budgets and alerts** for tokens, cost, and CI spend per project and sprint.
 - [x] **Manage teams and roles** with personal API keys, workspace scoping, and encrypted secrets.
 - [x] **SSO with GitHub, Google, GitLab, and any OIDC provider**, or use email/password. Buttons appear only when configured.
+- [x] **Audit sensitive changes**: an immutable log of association overrides, team changes, and credential/integration edits, with an admin viewer.
+- [x] **Build on the API**: an OpenAPI spec at `/openapi.json` (viewer at `/docs`) and per-project outbound webhooks with HMAC-signed delivery.
+- [x] **Keep data private**: `LOCAL_ONLY` blocks all outbound egress, `EVENT_RETENTION_DAYS` purges old events on a schedule, and `PII_REDACTION` masks secrets in stored prompt text.
 - [x] **First-run setup wizard**: no seed data; create your workspace and admin account on first visit.
-- [x] **Self-host in one command** with Docker Compose.
+- [x] **Self-host** with Docker Compose, or on Kubernetes with the bundled Helm chart and Terraform module.
 
 ## Works with your AI tools
 
@@ -102,6 +105,19 @@ npm run dev --workspace=apps/web
 ```
 
 Dashboard: http://localhost:5173 · API: http://localhost:3000 · Proxy: http://localhost:4000
+
+### Kubernetes
+
+Deploy with the Helm chart (bring your own PostgreSQL); migrations run as a pre-install Job:
+
+```bash
+helm install burnwise ./charts/burnwise \
+  --set secrets.databaseUrl="postgresql://user:pass@pg:5432/ats" \
+  --set secrets.jwtSecret="$(openssl rand -hex 32)" \
+  --set ingress.enabled=true --set ingress.host="burnwise.example.com"
+```
+
+A [Terraform module](terraform/) wraps the same chart for IaC-driven installs. See [charts/burnwise/README.md](charts/burnwise/README.md) and [docs/SELFHOST.md](docs/SELFHOST.md).
 
 For production deployment, see [docs/SELFHOST.md](docs/SELFHOST.md).
 
@@ -226,13 +242,17 @@ Node.js 22 · TypeScript 6 · Fastify 5 · Prisma 7 · PostgreSQL · React 19 ·
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | ✅ | PostgreSQL connection string |
-| `JWT_SECRET` | ✅ | Secret used to sign auth tokens. Use a long random string in production |
+| `JWT_SECRET` | ✅ | Secret used to sign auth tokens. Required in production: the server refuses to boot with `NODE_ENV=production` if this is unset or left at the dev default |
 | `JWT_EXPIRY` | | Token lifetime (default: `7d`) |
 | `INGEST_API_KEY` | ✅ | Shared fallback ingest key. Prefer per-developer personal keys (`bw_sk_...`) from Settings → API Keys so events bind to the real user |
 | `BURNWISE_ENCRYPTION_KEY` | | 32-byte hex key to encrypt secrets at rest (integration tokens, API-key secrets). Derived from `JWT_SECRET` if unset; set explicitly in production |
 | `CI_WEBHOOK_SECRET` | | Shared secret to verify inbound CI webhooks (GitHub HMAC / GitLab token / generic bearer). Verification is skipped with a warning if unset |
+| `LOCAL_ONLY` | | `true` blocks all outbound egress (integration sync, webhook delivery) and disables SSO, so no data leaves the machine |
+| `EVENT_RETENTION_DAYS` | | Delete events older than this many days via a daily purge. `0`/unset keeps them forever |
+| `PII_REDACTION` | | `true` masks emails, secret keys, and card/SSN numbers in stored prompt/response text at ingest |
+| `BURNWISE_PRICING_JSON` / `BURNWISE_PRICING_FILE` | | Override or extend model prices without a code change (inline JSON or a file path) |
 | `PORT` | | Server port (default: `3000`) |
-| `VITE_API_URL` | | URL the browser uses to reach the server (default: `http://localhost:3000`) |
+| `VITE_API_URL` | | URL the browser uses to reach the server. Leave empty for same-origin (the web image proxies `/api`); defaults to `http://localhost:3000` in dev |
 
 See `.env.example` for the full list including proxy and collector variables.
 
