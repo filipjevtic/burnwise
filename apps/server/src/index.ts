@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
-import { config } from "./config.js";
+import { config, validateConfig } from "./config.js";
 import { getPrisma } from "./db.js";
 import { startRetentionSweep } from "./services/retention.js";
 import { registerOpenApi } from "./openapi.js";
@@ -30,6 +30,17 @@ import { registerWebhookRoutes } from "./routes/webhooks.js";
 const app = Fastify({
   logger: true,
 });
+
+// Fail fast on insecure production config (default JWT secret, etc.) before we
+// accept any traffic. Warnings are logged; fatal issues stop the boot.
+{
+  const { fatal, warnings } = validateConfig();
+  for (const w of warnings) app.log.warn(w);
+  if (fatal.length > 0) {
+    for (const f of fatal) app.log.error(f);
+    process.exit(1);
+  }
+}
 
 // Parse JSON while retaining the raw body string on the request, so webhook
 // routes can verify HMAC signatures computed over the exact bytes received.

@@ -1,9 +1,14 @@
+// Insecure development defaults. Referenced by both the config below and the
+// production guard (validateConfig) so the two can't drift.
+export const DEFAULT_JWT_SECRET = "dev-jwt-secret-change-in-production";
+export const DEFAULT_INGEST_API_KEY = "dev-key";
+
 export const config = {
   port: Number(process.env.PORT || "3000"),
   databaseUrl: process.env.DATABASE_URL || "postgresql://ats:ats@localhost:5432/ats",
   nodeEnv: process.env.NODE_ENV || "development",
-  ingestApiKey: process.env.INGEST_API_KEY || "dev-key",
-  jwtSecret: process.env.JWT_SECRET || "dev-jwt-secret-change-in-production",
+  ingestApiKey: process.env.INGEST_API_KEY || DEFAULT_INGEST_API_KEY,
+  jwtSecret: process.env.JWT_SECRET || DEFAULT_JWT_SECRET,
   jwtExpiry: process.env.JWT_EXPIRY || "7d",
   appUrl: process.env.APP_URL || "http://localhost:5173",
   // Public URL of THIS server, used to build OAuth redirect URIs that must match
@@ -93,3 +98,32 @@ export const config = {
     scope: process.env.OIDC_SCOPE || "openid email profile",
   },
 };
+
+export interface ConfigIssues {
+  fatal: string[];
+  warnings: string[];
+}
+
+/**
+ * Validate security-critical config for production. Booting a production install
+ * with the built-in dev JWT secret would let anyone forge admin tokens, so that
+ * is fatal; weaker footguns (default ingest key, unset encryption key) are
+ * warnings. Pure — takes the config so it's easy to test. In non-production
+ * everything is allowed so local dev stays zero-config.
+ */
+export function validateConfig(cfg: typeof config = config): ConfigIssues {
+  const fatal: string[] = [];
+  const warnings: string[] = [];
+  if (cfg.nodeEnv === "production") {
+    if (!cfg.jwtSecret || cfg.jwtSecret === DEFAULT_JWT_SECRET) {
+      fatal.push("JWT_SECRET must be set to a strong random value in production (it is currently the insecure default — anyone could forge admin tokens).");
+    }
+    if (cfg.ingestApiKey === DEFAULT_INGEST_API_KEY) {
+      warnings.push("INGEST_API_KEY is the default 'dev-key'; set a strong value or issue per-developer API keys.");
+    }
+    if (!cfg.encryptionKey) {
+      warnings.push("BURNWISE_ENCRYPTION_KEY is not set; secrets are encrypted with a key derived from JWT_SECRET, so rotating JWT_SECRET will make stored secrets undecryptable. Set a dedicated 32-byte key.");
+    }
+  }
+  return { fatal, warnings };
+}
