@@ -22,6 +22,16 @@ RUN find /app/packages -name "*.tsbuildinfo" -delete \
   && npm run build --workspace=packages/pricing
 RUN npm run build --workspace=apps/server
 
+# Migration image (#22): reuses the builder (which has the Prisma CLI, schema,
+# and migrations) to run `prisma migrate deploy`. The runtime `runner` image
+# below ships no node_modules, so migrations can't run from it — the Helm chart
+# runs this image as a pre-install/upgrade Job. Kept before `runner` so `runner`
+# stays the default build target.
+FROM builder AS migrate
+WORKDIR /app/apps/server
+USER node
+CMD ["npx", "prisma", "migrate", "deploy"]
+
 FROM node:22-alpine AS runner
 
 WORKDIR /app

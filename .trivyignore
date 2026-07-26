@@ -5,3 +5,12 @@
 # advisory. The only fix is a major react-router 7 -> 8 upgrade, which we won't
 # take on for a vulnerability we aren't exposed to. Revisit if we ever adopt RSC.
 GHSA-qwww-vcr4-c8h2
+
+# --- Helm chart (charts/burnwise) config-scan false positives ---
+# KSV0125 — "image from an untrusted registry": ghcr.io is Burnwise's own
+# official image registry, so this is expected, not a risk.
+AVD-KSV-0125
+# KSV01010 — "ConfigMap stores sensitive contents": flags the key NAMES PORT and
+# RATE_LIMIT_* as if secret; they are non-sensitive server config, correctly kept
+# out of the Secret. False positive.
+AVD-KSV-01010

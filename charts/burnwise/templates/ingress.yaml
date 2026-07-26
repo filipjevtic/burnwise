@@ -1,0 +1,30 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "burnwise.fullname" . }}
+  labels:
+    {{- include "burnwise.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          # All traffic to web; it serves the SPA and proxies /api to the server.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "burnwise.fullname" . }}-web
+                port:
+                  number: {{ .Values.web.service.port }}
+{{- end }}

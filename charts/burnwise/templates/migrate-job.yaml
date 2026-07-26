@@ -1,0 +1,48 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "burnwise.fullname" . }}-migrate
+  labels:
+    {{- include "burnwise.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    # Run before the app rolls out, on install and upgrade, so the schema is
+    # current before pods start (#22).
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "burnwise.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "burnwise.podSecurityContext" 1000 | nindent 8 }}
+      containers:
+        - name: migrate
+          image: {{ include "burnwise.image" (list . "migrate") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "burnwise.containerSecurityContext" 1000 | nindent 12 }}
+          # Runs `prisma migrate deploy` (the image's default command). Needs
+          # DATABASE_URL from the same config/secret the server uses.
+          envFrom:
+            - configMapRef:
+                name: {{ include "burnwise.fullname" . }}-config
+            - secretRef:
+                name: {{ include "burnwise.secretName" . }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
