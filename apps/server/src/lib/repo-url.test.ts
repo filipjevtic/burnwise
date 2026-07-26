@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { parseGitHubRepo, parseGitLabProjectPath } from "./repo-url.js";
+import { parseGitHubRepo, parseGitLabProjectPath, githubApiBase } from "./repo-url.js";
 
 describe("parseGitHubRepo", () => {
   it("passes through plain owner + repo", () => {
@@ -41,5 +41,18 @@ describe("parseGitLabProjectPath", () => {
   it("returns null for an incomplete path", () => {
     assert.equal(parseGitLabProjectPath("justone"), null);
     assert.equal(parseGitLabProjectPath(""), null);
+  });
+});
+
+describe("githubApiBase", () => {
+  it("maps blank / github.com to the public API host", () => {
+    assert.equal(githubApiBase(""), "https://api.github.com");
+    assert.equal(githubApiBase(undefined), "https://api.github.com");
+    assert.equal(githubApiBase("https://github.com"), "https://api.github.com");
+    assert.equal(githubApiBase("https://github.com/"), "https://api.github.com");
+  });
+  it("maps an Enterprise host to <host>/api/v3", () => {
+    assert.equal(githubApiBase("https://github.example.com"), "https://github.example.com/api/v3");
+    assert.equal(githubApiBase("https://ghe.corp.internal/"), "https://ghe.corp.internal/api/v3");
   });
 });
