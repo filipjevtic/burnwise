@@ -14,6 +14,8 @@ import { resolveCostUsd } from "@burnwise/pricing";
 import { associateEvent, type AssociationCache } from "./association.js";
 import { deriveEventMetrics } from "./rollup.js";
 import { dispatchWebhooks } from "./webhook-delivery.js";
+import { config } from "../config.js";
+import { redactEventPayload } from "../lib/redact.js";
 
 interface Logger {
   warn: (obj: unknown, msg?: string) => void;
@@ -65,7 +67,11 @@ export async function persistEvents(
   for (const [index, event] of events.entries()) {
     try {
       const association = await associateEvent(event, cache);
-      const payload = backfillEventCost(event.eventType, event.payload);
+      const backfilled = backfillEventCost(event.eventType, event.payload);
+      // Redact PII/secrets from stored prompt/response text when enabled (#27).
+      // Applied after cost backfill (which only reads numeric fields) so pricing
+      // is unaffected; the redacted payload is what we store and deliver.
+      const payload = config.piiRedaction ? redactEventPayload(backfilled) : backfilled;
       // Denormalize metrics from the (cost-backfilled) payload so DB-side
       // rollups don't have to load payload JSON (#176).
       const metrics = deriveEventMetrics(event.eventType, payload);
