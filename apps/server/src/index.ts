@@ -2,6 +2,8 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { config } from "./config.js";
+import { getPrisma } from "./db.js";
+import { startRetentionSweep } from "./services/retention.js";
 import { registerOpenApi } from "./openapi.js";
 import { registerEventRoutes } from "./routes/events.js";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -99,3 +101,7 @@ try {
   app.log.error(err);
   process.exit(1);
 }
+
+// Start the daily event-retention sweep (#27). No-op unless EVENT_RETENTION_DAYS
+// is set. Runs in-process so self-hosted installs need no extra cron.
+startRetentionSweep(await getPrisma(), config.eventRetentionDays, app.log);

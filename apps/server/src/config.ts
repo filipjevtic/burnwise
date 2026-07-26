@@ -26,6 +26,10 @@ export const config = {
   // developer can run the full stack (via docker compose) with nothing sent
   // anywhere.
   localOnly: process.env.LOCAL_ONLY === "true",
+  // Event retention (#27). Raw events older than this many days are deleted by a
+  // daily in-process purge. 0 or unset means keep forever (default) — no purge
+  // runs. Set to e.g. 90 to enforce a rolling data-retention window.
+  eventRetentionDays: Number(process.env.EVENT_RETENTION_DAYS || "0"),
   // Browser origins allowed by CORS in production (comma-separated). Empty
   // defaults to APP_URL. In non-production, any origin is reflected for
   // convenience. Requests without an Origin header (curl, server-to-server,
