@@ -1,0 +1,7 @@
+# GHSA-qwww-vcr4-c8h2 — react-router "RSC Mode CSRF Bypass".
+# Not applicable: the web app is a client-side Vite SPA using BrowserRouter with
+# classic <Routes>/<Route> (see apps/web/src/App.tsx). It does not use React
+# Server Components / RSC mode, which is the sole attack surface for this
+# advisory. The only fix is a major react-router 7 -> 8 upgrade, which we won't
+# take on for a vulnerability we aren't exposed to. Revisit if we ever adopt RSC.
+GHSA-qwww-vcr4-c8h2
