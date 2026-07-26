@@ -56,7 +56,10 @@ helm install burnwise ./charts/burnwise \
 
 The web pod serves the UI and proxies `/api` to the server (same-origin), so one
 ingress host is enough. See [charts/burnwise/README.md](../charts/burnwise/README.md)
-for all values. A Terraform module that wraps this chart is a planned follow-up.
+for all values.
+
+A [Terraform module](../terraform) wraps this chart (via the `helm` provider) for
+IaC-driven installs on any cluster — see [terraform/README.md](../terraform/README.md).
 
 ## Local-only mode
 
