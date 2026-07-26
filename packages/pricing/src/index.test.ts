@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { estimateCost, resolveCostUsd, priceForModel, DEFAULT_PRICE } from "./index.js";
+import { estimateCost, resolveCostUsd, priceForModel, DEFAULT_PRICE, loadPricingOverride, mergePricing } from "./index.js";
 
 function assertApprox(actual: number, expected: number, message?: string) {
   assert.ok(Math.abs(actual - expected) < 1e-10, message ?? `expected ${expected}, got ${actual}`);
@@ -118,5 +118,48 @@ describe("resolveCostUsd", () => {
   it("returns undefined when there are no tokens to price", () => {
     assert.equal(resolveCostUsd({ model: "gpt-4o" }), undefined);
     assert.equal(resolveCostUsd({ model: "gpt-4o", promptTokens: 0, completionTokens: 0 }), undefined);
+  });
+});
+
+describe("loadPricingOverride", () => {
+  it("parses inline JSON and lowercases provider keys", () => {
+    const out = loadPricingOverride({
+      BURNWISE_PRICING_JSON: JSON.stringify({
+        models: { "gpt-5": { prompt: 2, completion: 8 } },
+        providers: { Azure: { "gpt-4o": { prompt: 5, completion: 15 } } },
+      }),
+    } as NodeJS.ProcessEnv);
+    assert.deepEqual(out.models, { "gpt-5": { prompt: 2, completion: 8 } });
+    assert.deepEqual(out.providers, { azure: { "gpt-4o": { prompt: 5, completion: 15 } } });
+  });
+
+  it("drops malformed entries instead of throwing", () => {
+    const out = loadPricingOverride({
+      BURNWISE_PRICING_JSON: JSON.stringify({
+        models: { good: { prompt: 1, completion: 2 }, bad: { prompt: -1, completion: 2 }, junk: "x" },
+      }),
+    } as NodeJS.ProcessEnv);
+    assert.deepEqual(out.models, { good: { prompt: 1, completion: 2 } });
+  });
+
+  it("returns {} on invalid JSON or no env", () => {
+    assert.deepEqual(loadPricingOverride({ BURNWISE_PRICING_JSON: "{not json" } as NodeJS.ProcessEnv), {});
+    assert.deepEqual(loadPricingOverride({} as NodeJS.ProcessEnv), {});
+  });
+});
+
+describe("mergePricing", () => {
+  const base = { models: { "gpt-4o": { prompt: 5, completion: 15 } }, providers: { bedrock: { titan: { prompt: 0.2, completion: 0.6 } } } };
+
+  it("override wins per model key; new keys added", () => {
+    const out = mergePricing(base, { models: { "gpt-4o": { prompt: 4, completion: 12 }, "gpt-5": { prompt: 2, completion: 8 } } });
+    assert.deepEqual(out.models["gpt-4o"], { prompt: 4, completion: 12 });
+    assert.deepEqual(out.models["gpt-5"], { prompt: 2, completion: 8 });
+  });
+
+  it("deep-merges provider tables without dropping built-ins", () => {
+    const out = mergePricing(base, { providers: { azure: { "gpt-4o": { prompt: 6, completion: 18 } } } });
+    assert.deepEqual(out.providers.bedrock, { titan: { prompt: 0.2, completion: 0.6 } });
+    assert.deepEqual(out.providers.azure, { "gpt-4o": { prompt: 6, completion: 18 } });
   });
 });
