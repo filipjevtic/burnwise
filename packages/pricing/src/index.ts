@@ -13,8 +13,11 @@
  * where its rate actually differs. See issue #197.
  *
  * This is a *fallback* table for events that arrive without a cost. Operators
- * should override it to match their negotiated/enterprise rates.
+ * should override it to match their negotiated/enterprise rates (see
+ * loadPricingOverride: BURNWISE_PRICING_JSON / BURNWISE_PRICING_FILE).
  */
+
+import { readFileSync } from "node:fs";
 
 export interface ModelPrice {
   prompt: number;
@@ -69,6 +72,76 @@ export const PROVIDER_MODEL_PRICES: Record<string, Record<string, ModelPrice>> =
 
 export const DEFAULT_PRICE: ModelPrice = { prompt: 1.0, completion: 3.0 };
 
+/**
+ * Operator pricing overrides, so new/updated model rates need no code change
+ * (#141). Supply JSON via `BURNWISE_PRICING_JSON` (inline) or
+ * `BURNWISE_PRICING_FILE` (path):
+ *
+ *   { "models": { "gpt-5": { "prompt": 2, "completion": 8 } },
+ *     "providers": { "azure": { "gpt-4o": { "prompt": 5, "completion": 15 } } } }
+ *
+ * `models` overrides the shared table; `providers` overrides per-provider. Only
+ * well-formed entries (non-negative prompt+completion) are kept; anything else
+ * is ignored so bad config can never break pricing.
+ */
+export interface PricingOverride {
+  models?: Record<string, ModelPrice>;
+  providers?: Record<string, Record<string, ModelPrice>>;
+}
+
+function isValidPrice(p: unknown): p is ModelPrice {
+  const v = p as ModelPrice;
+  return !!p && typeof p === "object" && isNonNegativeNumber(v.prompt) && isNonNegativeNumber(v.completion);
+}
+
+function sanitizeTable(table: unknown): Record<string, ModelPrice> {
+  const out: Record<string, ModelPrice> = {};
+  if (table && typeof table === "object") {
+    for (const [k, v] of Object.entries(table as Record<string, unknown>)) {
+      if (isValidPrice(v)) out[k] = { prompt: v.prompt, completion: v.completion };
+    }
+  }
+  return out;
+}
+
+/** Parse + sanitize overrides from env (BURNWISE_PRICING_JSON / _FILE). Never throws. */
+export function loadPricingOverride(env: NodeJS.ProcessEnv = process.env): PricingOverride {
+  let raw = env.BURNWISE_PRICING_JSON;
+  if (!raw && env.BURNWISE_PRICING_FILE) {
+    try {
+      raw = readFileSync(env.BURNWISE_PRICING_FILE, "utf8");
+    } catch {
+      return {};
+    }
+  }
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as PricingOverride;
+    const providers: Record<string, Record<string, ModelPrice>> = {};
+    for (const [prov, table] of Object.entries(parsed.providers ?? {})) {
+      providers[prov.toLowerCase()] = sanitizeTable(table);
+    }
+    return { models: sanitizeTable(parsed.models), providers };
+  } catch {
+    return {};
+  }
+}
+
+/** Merge an override over the built-in tables (override wins per key). Pure. */
+export function mergePricing(
+  base: { models: Record<string, ModelPrice>; providers: Record<string, Record<string, ModelPrice>> },
+  override: PricingOverride
+): { models: Record<string, ModelPrice>; providers: Record<string, Record<string, ModelPrice>> } {
+  const providers: Record<string, Record<string, ModelPrice>> = { ...base.providers };
+  for (const [prov, table] of Object.entries(override.providers ?? {})) {
+    providers[prov] = { ...(providers[prov] ?? {}), ...table };
+  }
+  return { models: { ...base.models, ...(override.models ?? {}) }, providers };
+}
+
+// Effective tables: built-in merged with operator overrides, computed once.
+const merged = mergePricing({ models: MODEL_PRICES, providers: PROVIDER_MODEL_PRICES }, loadPricingOverride());
+
 /** Longest-substring match of `model` against a price table, or undefined. */
 function matchInTable(table: Record<string, ModelPrice>, model: string): ModelPrice | undefined {
   const key = Object.keys(table)
@@ -85,13 +158,13 @@ function matchInTable(table: Record<string, ModelPrice>, model: string): ModelPr
  */
 export function priceForModel(model: string, provider?: string): ModelPrice {
   if (provider) {
-    const providerTable = PROVIDER_MODEL_PRICES[provider.toLowerCase()];
+    const providerTable = merged.providers[provider.toLowerCase()];
     if (providerTable) {
       const providerMatch = matchInTable(providerTable, model);
       if (providerMatch) return providerMatch;
     }
   }
-  return matchInTable(MODEL_PRICES, model) ?? DEFAULT_PRICE;
+  return matchInTable(merged.models, model) ?? DEFAULT_PRICE;
 }
 
 /**
