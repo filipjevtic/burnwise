@@ -21,13 +21,14 @@ spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
-      securityContext: {{- toYaml . | nindent 8 }}
-      {{- end }}
+      securityContext:
+        {{- include "burnwise.podSecurityContext" 1000 | nindent 8 }}
       containers:
         - name: proxy
           image: {{ include "burnwise.image" (list . "proxy") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "burnwise.containerSecurityContext" 1000 | nindent 12 }}
           env:
             - name: SERVER_URL
               value: {{ include "burnwise.serverUrl" . | quote }}
@@ -51,6 +52,12 @@ spec:
           {{- with .Values.proxy.resources }}
           resources: {{- toYaml . | nindent 12 }}
           {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
       {{- with .Values.nodeSelector }}
       nodeSelector: {{- toYaml . | nindent 8 }}
       {{- end }}

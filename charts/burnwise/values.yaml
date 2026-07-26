@@ -89,8 +89,9 @@ ingress:
   # to the server (same-origin, #22). No separate API host needed.
   tls: [] # e.g. [{ secretName: burnwise-tls, hosts: [burnwise.example.com] }]
 
-podSecurityContext: {}
-securityContext: {}
+# Pods/containers run hardened by default (non-root, read-only rootfs, dropped
+# capabilities, seccomp RuntimeDefault) with the writable emptyDir mounts each
+# image needs — see the templates.
 nodeSelector: {}
 tolerations: []
 affinity: {}

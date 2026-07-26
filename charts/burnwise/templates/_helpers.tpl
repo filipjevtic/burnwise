@@ -40,3 +40,23 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
 {{- define "burnwise.serverUrl" -}}
 {{- printf "http://%s-server:%d" (include "burnwise.fullname" .) (int .Values.server.service.port) -}}
 {{- end -}}
+
+{{- /* Hardened container securityContext. Arg: numeric uid (node=1000, nginx=101). */ -}}
+{{- define "burnwise.containerSecurityContext" -}}
+runAsNonRoot: true
+runAsUser: {{ . }}
+allowPrivilegeEscalation: false
+readOnlyRootFilesystem: true
+capabilities:
+  drop: [ALL]
+seccompProfile:
+  type: RuntimeDefault
+{{- end -}}
+
+{{- /* Pod securityContext. Arg: numeric fsGroup so emptyDir volumes are writable. */ -}}
+{{- define "burnwise.podSecurityContext" -}}
+runAsNonRoot: true
+fsGroup: {{ . }}
+seccompProfile:
+  type: RuntimeDefault
+{{- end -}}

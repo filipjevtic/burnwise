@@ -29,6 +29,7 @@ RUN npm run build --workspace=apps/server
 # stays the default build target.
 FROM builder AS migrate
 WORKDIR /app/apps/server
+USER node
 CMD ["npx", "prisma", "migrate", "deploy"]
 
 FROM node:22-alpine AS runner

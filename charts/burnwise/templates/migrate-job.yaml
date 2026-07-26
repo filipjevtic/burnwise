@@ -24,10 +24,14 @@ spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        {{- include "burnwise.podSecurityContext" 1000 | nindent 8 }}
       containers:
         - name: migrate
           image: {{ include "burnwise.image" (list . "migrate") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "burnwise.containerSecurityContext" 1000 | nindent 12 }}
           # Runs `prisma migrate deploy` (the image's default command). Needs
           # DATABASE_URL from the same config/secret the server uses.
           envFrom:
@@ -35,4 +39,10 @@ spec:
                 name: {{ include "burnwise.fullname" . }}-config
             - secretRef:
                 name: {{ include "burnwise.secretName" . }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 {{- end }}
