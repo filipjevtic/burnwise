@@ -26,6 +26,10 @@ export const config = {
   // developer can run the full stack (via docker compose) with nothing sent
   // anywhere.
   localOnly: process.env.LOCAL_ONLY === "true",
+  // PII redaction (#27). When true, high-confidence secrets/personal data
+  // (emails, API keys, card/SSN numbers) are masked in stored prompt/response
+  // text at ingest. Off by default (prompts stored verbatim).
+  piiRedaction: process.env.PII_REDACTION === "true",
   // Event retention (#27). Raw events older than this many days are deleted by a
   // daily in-process purge. 0 or unset means keep forever (default) — no purge
   // runs. Set to e.g. 90 to enforce a rolling data-retention window.

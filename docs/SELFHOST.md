@@ -229,6 +229,21 @@ on each event are unaffected beyond the deleted rows. For very large tables,
 prefer an external batched delete so a single sweep doesn't hold a long
 transaction.
 
+## PII redaction
+
+To avoid retaining sensitive content pasted into prompts, set `PII_REDACTION=true`
+(#27). At ingest, high-confidence secrets and personal data are masked in stored
+prompt/response text (and message content):
+
+```bash
+PII_REDACTION=true   # default false (prompts stored verbatim)
+```
+
+Redacted patterns: email addresses, US SSNs, credit-card numbers, and common
+secret keys (OpenAI `sk-…`, GitHub `ghp_…`/`gho_…`, AWS `AKIA…`). Only free-text
+fields are touched; token counts, model, provider, and metadata are preserved.
+Redaction happens before storage, so it also applies to outbound webhook payloads.
+
 ## Updates
 
 ```bash
