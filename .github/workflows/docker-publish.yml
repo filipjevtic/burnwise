@@ -17,7 +17,13 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [server, web, proxy]
+        include:
+          - { name: server, file: apps/server/Dockerfile }
+          - { name: web, file: apps/web/Dockerfile }
+          - { name: proxy, file: apps/proxy/Dockerfile }
+          # Migration image: the `migrate` stage of the server Dockerfile (Prisma
+          # CLI + schema + migrations) for the Helm chart's migrate Job (#22).
+          - { name: migrate, file: apps/server/Dockerfile, target: migrate }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,7 +42,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -47,7 +53,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/${{ matrix.service }}/Dockerfile
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -1,0 +1,96 @@
+# Burnwise Helm chart values. See charts/burnwise/README.md.
+
+image:
+  registry: ghcr.io
+  repository: filipjevtic/burnwise # images: <registry>/<repository>/{server,web,proxy,migrate}
+  # Defaults to the chart's appVersion when empty.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Bring your own PostgreSQL: set config.databaseUrl (or secrets.databaseUrl) to a
+# reachable Postgres. This chart does not bundle a database. For a quick trial,
+# deploy one separately (e.g. `helm install pg bitnami/postgresql`) and point at it.
+
+# Non-sensitive env (rendered into a ConfigMap, envFrom'd into the server).
+config:
+  nodeEnv: production
+  # Public URL browsers use to reach Burnwise (the ingress URL). Used for OAuth
+  # redirect URIs and CORS defaults.
+  appUrl: ""
+  serverPublicUrl: ""
+  jwtExpiry: 7d
+  localOnly: false
+  integrationAllowPrivateHosts: false
+  ssoAllowedDomains: ""
+  corsAllowedOrigins: ""
+  # Optional pricing overrides (see docs). JSON string.
+  pricingJson: ""
+  rateLimit:
+    disabled: false
+    max: "300"
+    window: "1 minute"
+    authMax: "10"
+    ingestMax: "600"
+
+# Sensitive env. Either provide values here (rendered into a Secret) OR set
+# existingSecret to the name of a Secret you manage with the same keys.
+secrets:
+  existingSecret: ""
+  # Required unless existingSecret is set:
+  databaseUrl: "" # DATABASE_URL, e.g. postgresql://user:pass@host:5432/ats
+  jwtSecret: "" # long random string
+  ingestApiKey: "" # shared fallback ingest key; prefer per-user keys from the UI
+  encryptionKey: "" # 32-byte hex; derived from jwtSecret if empty
+  ciWebhookSecret: ""
+  # OAuth / OIDC (optional)
+  githubClientId: ""
+  githubClientSecret: ""
+  googleClientId: ""
+  googleClientSecret: ""
+  gitlabClientId: ""
+  gitlabClientSecret: ""
+  oidcIssuerUrl: ""
+  oidcClientId: ""
+  oidcClientSecret: ""
+
+# Run `prisma migrate deploy` as a pre-install/pre-upgrade Job (needs the migrate
+# image). Disable if you apply migrations out of band.
+migrations:
+  enabled: true
+  backoffLimit: 3
+
+server:
+  replicas: 1
+  resources: {}
+  service:
+    port: 3000
+
+web:
+  replicas: 1
+  resources: {}
+  service:
+    port: 8080
+
+# The API proxy (OPENAI_BASE_URL / ANTHROPIC_BASE_URL target). Optional.
+proxy:
+  enabled: true
+  replicas: 1
+  resources: {}
+  service:
+    port: 4000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: burnwise.example.com
+  # Routes all traffic to the web service, which serves the SPA and proxies /api
+  # to the server (same-origin, #22). No separate API host needed.
+  tls: [] # e.g. [{ secretName: burnwise-tls, hosts: [burnwise.example.com] }]
+
+podSecurityContext: {}
+securityContext: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

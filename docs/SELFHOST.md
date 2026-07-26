@@ -39,6 +39,25 @@ npm run db:migrate:deploy --workspace=apps/server
 npm run start --workspace=apps/server
 ```
 
+## Option 3: Kubernetes (Helm)
+
+A Helm chart is provided in [`charts/burnwise`](../charts/burnwise). It deploys
+the server, web UI, and API proxy, and runs migrations as a pre-install/upgrade
+Job. Bring your own PostgreSQL (set `secrets.databaseUrl`).
+
+```bash
+helm install burnwise ./charts/burnwise \
+  --set secrets.databaseUrl="postgresql://user:pass@pg:5432/ats" \
+  --set secrets.jwtSecret="$(openssl rand -hex 32)" \
+  --set config.appUrl="https://burnwise.example.com" \
+  --set config.serverPublicUrl="https://burnwise.example.com" \
+  --set ingress.enabled=true --set ingress.host="burnwise.example.com"
+```
+
+The web pod serves the UI and proxies `/api` to the server (same-origin), so one
+ingress host is enough. See [charts/burnwise/README.md](../charts/burnwise/README.md)
+for all values. A Terraform module that wraps this chart is a planned follow-up.
+
 ## Local-only mode
 
 Run the full stack on your own machine with a hard guarantee that **no data

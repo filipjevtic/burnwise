@@ -1,0 +1,11 @@
+apiVersion: v2
+name: burnwise
+description: Self-hosted, vendor-neutral analytics that attribute AI-assisted effort to tickets, projects, and developers.
+type: application
+# Chart version; bump on chart changes. appVersion tracks the Burnwise release
+# whose images this chart deploys by default.
+version: 0.1.0
+appVersion: "0.3.0"
+home: https://github.com/filipjevtic/burnwise
+sources:
+  - https://github.com/filipjevtic/burnwise

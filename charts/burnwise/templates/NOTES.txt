@@ -1,0 +1,28 @@
+Burnwise {{ .Chart.AppVersion }} deployed as release "{{ .Release.Name }}".
+
+{{- if not .Values.secrets.existingSecret }}
+{{- if not .Values.secrets.databaseUrl }}
+
+⚠  No database configured. Set secrets.databaseUrl (or secrets.existingSecret with
+   a DATABASE_URL key) to a reachable PostgreSQL, then `helm upgrade`.
+{{- end }}
+{{- if not .Values.secrets.jwtSecret }}
+
+⚠  No JWT secret set. Set secrets.jwtSecret to a long random string in production:
+     kubectl create secret generic {{ include "burnwise.fullname" . }}-secrets \
+       --from-literal=JWT_SECRET=$(openssl rand -hex 32) ... (or set via values)
+{{- end }}
+{{- end }}
+
+Access the dashboard:
+{{- if .Values.ingress.enabled }}
+  https://{{ .Values.ingress.host }}
+{{- else }}
+  kubectl port-forward svc/{{ include "burnwise.fullname" . }}-web {{ .Values.web.service.port }}:{{ .Values.web.service.port }}
+  then open http://localhost:{{ .Values.web.service.port }}
+{{- end }}
+
+The web pod serves the UI and proxies /api to the server, so one host is enough.
+{{- if .Values.proxy.enabled }}
+Point AI tools at the proxy: svc/{{ include "burnwise.fullname" . }}-proxy:{{ .Values.proxy.service.port }}
+{{- end }}
