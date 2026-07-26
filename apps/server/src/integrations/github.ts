@@ -45,8 +45,10 @@ interface GitHubConfig {
 export async function syncGitHub(config: GitHubConfig): Promise<{
   sprints: number;
   tickets: number;
+  failed: number;
 }> {
   const prisma = await getPrisma();
+  let failed = 0;
 
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
@@ -91,7 +93,7 @@ export async function syncGitHub(config: GitHubConfig): Promise<{
       headers
     );
     for (const issue of issues) {
-      await syncIssue(prisma, config.projectId, sprint.id, issue);
+      failed += await syncIssueSafe(prisma, config.projectId, sprint.id, issue);
     }
   }
 
@@ -101,14 +103,34 @@ export async function syncGitHub(config: GitHubConfig): Promise<{
     headers
   );
   for (const issue of unassignedIssues) {
-    await syncIssue(prisma, config.projectId, null, issue);
+    failed += await syncIssueSafe(prisma, config.projectId, null, issue);
   }
 
   const tickets = await prisma.ticket.count({
     where: { projectId: config.projectId },
   });
 
-  return { sprints: sprintCount, tickets };
+  return { sprints: sprintCount, tickets, failed };
+}
+
+/**
+ * Run syncIssue but never abort the whole sync on one bad item (#70). Returns 1
+ * if the issue failed to import (logged), 0 otherwise, so the caller can report
+ * a partial-failure count instead of a total failure.
+ */
+async function syncIssueSafe(
+  prisma: Awaited<ReturnType<typeof getPrisma>>,
+  projectId: string,
+  sprintId: string | null,
+  issue: GitHubIssue
+): Promise<number> {
+  try {
+    await syncIssue(prisma, projectId, sprintId, issue);
+    return 0;
+  } catch (err) {
+    console.warn(`GitHub sync: failed to import issue #${issue.number}:`, err instanceof Error ? err.message : err);
+    return 1;
+  }
 }
 
 async function syncIssue(

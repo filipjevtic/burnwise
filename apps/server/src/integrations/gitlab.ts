@@ -60,8 +60,9 @@ export function normalizeGitLabState(state: string | null | undefined): string {
   }
 }
 
-export async function syncGitLab(config: GitLabConfig): Promise<{ sprints: number; tickets: number }> {
+export async function syncGitLab(config: GitLabConfig): Promise<{ sprints: number; tickets: number; failed: number }> {
   const prisma = await getPrisma();
+  let failed = 0;
   const baseUrl = config.baseUrl.replace(/\/$/, "");
   const encodedPath = encodeURIComponent(config.projectPath);
   const projectApiUrl = `${baseUrl}/api/v4/projects/${encodedPath}`;
@@ -113,7 +114,7 @@ export async function syncGitLab(config: GitLabConfig): Promise<{ sprints: numbe
     );
     const sprintId = milestoneTitleToSprintId[milestone.title];
     for (const issue of issues) {
-      await syncIssue(prisma, config.projectId, sprintId, issue);
+      failed += await syncIssueSafe(prisma, config.projectId, sprintId, issue);
     }
   }
 
@@ -123,14 +124,33 @@ export async function syncGitLab(config: GitLabConfig): Promise<{ sprints: numbe
     headers
   );
   for (const issue of unassignedIssues) {
-    await syncIssue(prisma, config.projectId, null, issue);
+    failed += await syncIssueSafe(prisma, config.projectId, null, issue);
   }
 
   const tickets = await prisma.ticket.count({
     where: { projectId: config.projectId },
   });
 
-  return { sprints: sprintCount, tickets };
+  return { sprints: sprintCount, tickets, failed };
+}
+
+/**
+ * Run syncIssue without aborting the whole sync on one bad item (#70). Returns 1
+ * if the issue failed to import (logged), 0 otherwise.
+ */
+async function syncIssueSafe(
+  prisma: Awaited<ReturnType<typeof getPrisma>>,
+  projectId: string,
+  sprintId: string | null,
+  issue: GitLabIssue
+): Promise<number> {
+  try {
+    await syncIssue(prisma, projectId, sprintId, issue);
+    return 0;
+  } catch (err) {
+    console.warn(`GitLab sync: failed to import issue !${issue.iid}:`, err instanceof Error ? err.message : err);
+    return 1;
+  }
 }
 
 async function syncIssue(

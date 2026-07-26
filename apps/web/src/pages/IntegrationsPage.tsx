@@ -135,7 +135,7 @@ export function IntegrationsPage({
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      onSync(`Synced ${data.sprints} sprints and ${data.tickets} tickets from GitHub.`);
+      onSync(`Synced ${data.sprints} sprints and ${data.tickets} tickets from GitHub.${data.failed ? ` ${data.failed} item(s) failed to import — see server logs.` : ""}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
     } finally {
@@ -163,7 +163,7 @@ export function IntegrationsPage({
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      onSync(`Synced ${data.sprints} sprints and ${data.tickets} tickets from Jira.`);
+      onSync(`Synced ${data.sprints} sprints and ${data.tickets} tickets from Jira.${data.failed ? ` ${data.failed} item(s) failed to import — see server logs.` : ""}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
     } finally {
@@ -189,7 +189,7 @@ export function IntegrationsPage({
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      onSync(`Synced ${data.sprints} sprints and ${data.tickets} tickets from GitLab.`);
+      onSync(`Synced ${data.sprints} sprints and ${data.tickets} tickets from GitLab.${data.failed ? ` ${data.failed} item(s) failed to import — see server logs.` : ""}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
     } finally {
@@ -274,6 +274,13 @@ export function IntegrationsPage({
                           onChange={(e) => setGithubToken(e.target.value)}
                           placeholder={savedProvider === "github" ? "Saved — leave blank to keep" : undefined}
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Needs the <code>repo</code> scope (read).{" "}
+                          <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer" className="underline">
+                            Create a token
+                          </a>
+                          .
+                        </p>
                       </div>
                       <div className="grid gap-1.5">
                         <Label htmlFor="githubBaseUrl">Enterprise base URL (optional)</Label>
@@ -339,6 +346,13 @@ export function IntegrationsPage({
                           onChange={(e) => setJiraToken(e.target.value)}
                           placeholder={savedProvider === "jira" ? "Saved — leave blank to keep" : undefined}
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Create an API token at{" "}
+                          <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer" className="underline">
+                            id.atlassian.com
+                          </a>
+                          .
+                        </p>
                       </div>
                       <div className="grid gap-1.5">
                         <Label htmlFor="jiraProjectKey">Project key</Label>
@@ -406,6 +420,18 @@ export function IntegrationsPage({
                           onChange={(e) => setGitlabToken(e.target.value)}
                           placeholder={savedProvider === "gitlab" ? "Saved — leave blank to keep" : undefined}
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Needs the <code>read_api</code> scope.{" "}
+                          <a
+                            href={`${gitlabBaseUrl.endsWith("/") ? gitlabBaseUrl.slice(0, -1) : gitlabBaseUrl}/-/user_settings/personal_access_tokens`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                          >
+                            Create a token
+                          </a>
+                          .
+                        </p>
                       </div>
                       <div className="grid gap-1.5">
                         <Label htmlFor="gitlabProjectPath">Project path (group/project)</Label>
